@@ -8,6 +8,7 @@
     "scheme": "chronos",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.chronos.shifttracker",
       "icon": "./assets/expo.icon",
       "infoPlist": {
         "ExpoLocalization_supportsRTL": true,
@@ -19,6 +20,7 @@
       }
     },
     "android": {
+      "package": "com.chronos.shifttracker",
       "adaptiveIcon": {
         "backgroundColor": "#DCE7E0",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
