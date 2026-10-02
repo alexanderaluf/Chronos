@@ -16,6 +16,9 @@ export function buildMonthlyReport(summary: PeriodSummary, currency: string, emp
   const lines: string[] = [t("report.title", { month: formatMonthLabel(new Date(year, month - 1, 1)) })];
   if (employer.name) lines.push(t("report.employer", { name: employer.name }));
   if (employer.notes) lines.push(employer.notes);
+  if (summary.holidayStatus && summary.holidayStatus !== "ready" && summary.holidayStatus !== "disabled") {
+    lines.push(t(`holidayPay.status.${summary.holidayStatus}`));
+  }
   lines.push("", t("report.shiftsHeading"));
   for (const { shift, pay } of summary.shifts) {
     const start = fromIso(shift.startAt);
@@ -26,6 +29,7 @@ export function buildMonthlyReport(summary: PeriodSummary, currency: string, emp
         shift.label ? `  ${shift.label}` : ""
       }`,
     );
+    if (pay.holidayMinutes > 0) lines.push(`  ${t("holidayPay.saved", { hours: formatHours(pay.holidayMinutes) })}`);
   }
   for (const { paidDay } of summary.paidDays) {
     lines.push(

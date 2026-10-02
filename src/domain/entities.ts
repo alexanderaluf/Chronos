@@ -161,6 +161,7 @@ export type EmployerInfo = {
 };
 
 export type AppSettings = {
+  holidayPay: import("./holidays/holiday-settings").HolidayPaySettings;
   /** null = follow the device language (English if it is not supported). */
   appLanguage: AppLanguage | null;
   themeMode: ThemeMode;

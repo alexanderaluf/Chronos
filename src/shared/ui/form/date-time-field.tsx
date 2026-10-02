@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import { formatMinuteOfDay } from "@/domain/time/time";
 import { getAppLocale } from "@/shared/lib/format";
+import { useAppLocalization } from "@/localization/localization-provider";
+import type { AppLanguage } from "@/localization/languages";
 
 import { Text } from "../app-text";
 import { DateTimePickerOverlay } from "../controls/date-time-picker-overlay";
@@ -14,8 +16,8 @@ import { FieldRow } from "./fields";
  * a native SwiftUI popover on iOS, the native Material dialog on Android.
  */
 
-export function formatPickerDate(date: Date) {
-  return date.toLocaleDateString(getAppLocale(), { day: "numeric", month: "short", year: "numeric" });
+export function formatPickerDate(date: Date, language?: AppLanguage) {
+  return date.toLocaleDateString(getAppLocale(language), { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** The tappable value pill; the picker anchors to it. */
@@ -49,7 +51,7 @@ function PickerValue({
         setOpen(true);
       }}
     >
-      <Text className="font-manrope-semibold text-base text-foreground" style={{ fontVariant: ["tabular-nums"] }}>
+      <Text className="font-manrope-semibold text-base text-foreground" style={{ fontVariant: ["tabular-nums"], ...(mode === "time" ? { direction: "ltr" as const, writingDirection: "ltr" as const } : {}) }}>
         {display}
       </Text>
       <DateTimePickerOverlay
@@ -81,10 +83,11 @@ export function DateField({
   minimumDate?: Date;
   maximumDate?: Date;
 }) {
+  const { language } = useAppLocalization();
   return (
     <FieldRow hint={hint} label={label}>
       <PickerValue
-        display={formatPickerDate(value)}
+        display={formatPickerDate(value, language)}
         label={label}
         maximumDate={maximumDate}
         minimumDate={minimumDate}

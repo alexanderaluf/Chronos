@@ -8,7 +8,8 @@ import { updateSettings } from "@/data/repositories/settings-repository";
 import type { AppLanguage, AppSettings, CalendarDirection, ThemeMode } from "@/domain/entities";
 import { i18n } from "@/localization/i18n";
 import { LANGUAGE_OPTIONS } from "@/localization/languages";
-import { getDeviceLanguage } from "@/localization/localization-provider";
+import { getDeviceLanguage, useAppLocalization } from "@/localization/localization-provider";
+import { formatNumber } from "@/shared/lib/format";
 import { ACCENT_OPTIONS } from "@/shared/theme/app-theme";
 import { Text } from "@/shared/ui/app-text";
 import { FilledIcon } from "@/shared/ui/filled-icon";
@@ -19,12 +20,13 @@ import { QueryGate } from "@/shared/ui/query-gate";
 /** − value + control, like the reference app's steppers. */
 function Stepper({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (value: number) => void }) {
   const { t } = useTranslation();
+  const { language } = useAppLocalization();
   return (
-    <View className="flex-row items-center gap-1 rounded-xl bg-surface-secondary">
+    <View className="flex-row items-center gap-1 rounded-xl bg-surface-secondary" style={{ direction: "ltr" }}>
       <Pressable accessibilityLabel={t("general.decrease")} accessibilityRole="button" className="px-3 py-1.5" disabled={value <= min} onPress={() => onChange(value - 1)}>
         <Text className={`text-xl ${value <= min ? "text-muted" : ""}`}>−</Text>
       </Pressable>
-      <Text className="min-w-6 text-center text-base">{value}</Text>
+      <Text className="min-w-6 text-center text-base" style={{ writingDirection: "ltr", fontVariant: ["tabular-nums"] }}>{formatNumber(value, undefined, language)}</Text>
       <Pressable accessibilityLabel={t("general.increase")} accessibilityRole="button" className="px-3 py-1.5" disabled={value >= max} onPress={() => onChange(value + 1)}>
         <Text className={`text-xl ${value >= max ? "text-muted" : ""}`}>+</Text>
       </Pressable>
@@ -44,12 +46,13 @@ function LanguageRow({
   selected: boolean;
   onPress: () => void;
 }) {
+  const { direction } = useAppLocalization();
   return (
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
       className="min-h-16 flex-row items-center border-b-2 border-background px-4 py-3"
-      style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}
+      style={({ pressed }) => ({ direction, opacity: pressed ? 0.72 : 1 })}
       onPress={onPress}
     >
       <View className="flex-1">

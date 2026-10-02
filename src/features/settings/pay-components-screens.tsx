@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, View } from "react-native";
 
 import { usePayComponent, usePayComponents } from "@/data/hooks/queries";
 import {
@@ -14,9 +13,10 @@ import type { PayComponent, PayComponentCalculation, PayComponentKind } from "@/
 import { i18n } from "@/localization/i18n";
 import { describePayComponent } from "@/localization/labels";
 import { usePrimaryCurrency } from "@/features/shifts/hooks/use-primary-currency";
-import { formatMoney } from "@/shared/lib/format";
+import { formatNumber, formatStatementMoney } from "@/shared/lib/format";
+import { useAppLocalization } from "@/localization/localization-provider";
 import { Text } from "@/shared/ui/app-text";
-import { AddRow, FormSection, SegmentedField, SwitchField, TextField } from "@/shared/ui/form/fields";
+import { AddRow, LinkRow, FormSection, SegmentedField, SwitchField, TextField } from "@/shared/ui/form/fields";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import {
   basisPointsToInput,
@@ -31,6 +31,7 @@ import { AppAlert } from "@/shared/ui/overlay/app-alert";
 /** Route: /settings/additions and /settings/deductions */
 export function PayComponentsScreen({ kind }: { kind: PayComponentKind }) {
   const { t } = useTranslation();
+  const { language } = useAppLocalization();
   const components = usePayComponents(kind);
   const currency = usePrimaryCurrency();
   const items = components.data ?? [];
@@ -40,21 +41,13 @@ export function PayComponentsScreen({ kind }: { kind: PayComponentKind }) {
       <FormSection>
         {items.length === 0 ? <Text className="px-4 py-3.5 text-sm text-muted">{t(`components.${kind}.empty`)}</Text> : null}
         {items.map((item) => (
-          <Pressable
+          <LinkRow
             key={item.id}
-            accessibilityRole="button"
-            className="flex-row items-center gap-3 border-b-2 border-background px-4 py-3.5 active:opacity-70"
+            label={item.name}
+            hint={item.isActive ? undefined : t("components.paused")}
+            value={describePayComponent(item, (amount) => formatStatementMoney(amount, currency, language), (percent) => formatNumber(percent, { maximumFractionDigits: 2 }, language))}
             onPress={() => router.push(`/settings/components/${item.id}`)}
-          >
-            <View className="flex-1">
-              <Text className={`text-base ${item.isActive ? "" : "text-muted"}`}>{item.name}</Text>
-              <Text className="text-xs text-muted">
-                {describePayComponent(item, (amount) => formatMoney(amount, currency))}
-                {item.isActive ? "" : t("components.paused")}
-              </Text>
-            </View>
-            <Text className="text-lg text-muted">›</Text>
-          </Pressable>
+          />
         ))}
         <AddRow label={t(`components.${kind}.add`)} onPress={() => router.push({ pathname: "/settings/components/new", params: { kind } })} />
       </FormSection>
@@ -65,6 +58,7 @@ export function PayComponentsScreen({ kind }: { kind: PayComponentKind }) {
 function PayComponentForm({ kind, existing }: { kind: PayComponentKind; existing?: PayComponent }) {
   const { t } = useTranslation();
   const database = useSQLiteContext();
+  const currency = usePrimaryCurrency();
   const calculations: { value: PayComponentCalculation; label: string }[] = [
     { value: "monthlyFixed", label: t("components.calculations.monthlyFixed") },
     { value: "perWorkDay", label: t("components.calculations.perWorkDay") },
@@ -131,7 +125,7 @@ function PayComponentForm({ kind, existing }: { kind: PayComponentKind; existing
             onChangeText={setPercent}
           />
         ) : (
-          <TextField keyboardType="decimal-pad" label={amountLabel} value={amount} onChangeText={setAmount} />
+          <TextField currencyCode={currency} keyboardType="decimal-pad" label={amountLabel} value={amount} onChangeText={setAmount} />
         )}
         {kind === "addition" ? (
           <SwitchField hint={t("components.taxableHint")} label={t("components.taxable")} value={isTaxable} onValueChange={setIsTaxable} />

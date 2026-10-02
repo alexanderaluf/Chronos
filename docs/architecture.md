@@ -31,7 +31,7 @@ src/
 │   └── data.test.ts     Integration tests: migrations, repositories, reports
 │
 ├── features/            One folder per product area. Screens and their private parts.
-│   ├── home/            Clock card, next planned shift, month overview, recent shifts
+│   ├── home/            Shifts-only ledger, grouped by day, with pay-period browsing
 │   ├── create-menu/     The "+" menu (new shift, fixed shift, paid day, monthly additions)
 │   ├── shifts/          Shift editor + shift hooks/components used by several features
 │   ├── paid-days/       Vacation / sick / holiday editor
@@ -162,3 +162,12 @@ npm run typecheck  # tsc --noEmit
 npm run lint       # expo lint
 npx expo-doctor    # dependency / config health
 ```
+
+
+## Israeli holiday pay
+
+Holiday dates are normalized from Hebcal's Israel calendar in `data/holidays/hebcal-client.ts`. Only Yom Tov and Independence Day qualify. `domain/holidays/` converts calendar events to premium windows in Asia/Jerusalem, merges overlapping intervals, and splits shift work by exact minute boundaries. The existing pay engine applies the higher effective rate, preserving overtime and rest-day rules without stacking identical premiums. Monthly workers receive only extra pay above their salary for normal hours.
+
+Global `settings.holidayPay` selects automatic city-based entry/nightfall times or custom previous-day start / holiday-day end times. Independence Day uses 20:00–20:00 automatically; custom hours override it. Settings and cache changes invalidate live reports, so historical shift records stay untouched. Since breaks record only a duration, unpaid minutes are allocated at the end of a shift for holiday estimates; the settings and shift breakdown disclose this assumption.
+
+`data/holidays/holiday-service.ts` loads every relevant year and deduplicates concurrent requests. The SQLite yearly cache is keyed by city (or dates-only), refreshes after 30 days, and falls back to stale data offline. Failed requests back off for one minute. Missing data yields a visible incomplete-estimate notice, never an invented holiday premium. Calendar requests send only year and chosen city coordinates; personal shift and salary data remain on-device. About credits and links to Hebcal. Regression tests include a public Hebcal 2026 Tel Aviv response snapshot.

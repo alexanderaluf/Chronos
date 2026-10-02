@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, TextInput, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { useActiveTaxProfile } from "@/data/hooks/queries";
 import { resetTaxProfileToIsraelDefaults, updateTaxRules } from "@/data/repositories/tax-profiles-repository";
@@ -10,6 +10,7 @@ import type { TaxProfile } from "@/domain/entities";
 import type { TaxRules } from "@/domain/tax/tax-rules";
 import { Text } from "@/shared/ui/app-text";
 import { AddRow, FormButton, FormSection, TextField } from "@/shared/ui/form/fields";
+import { NumericInput } from "@/shared/ui/form/numeric-input";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import {
   basisPointsToInput,
@@ -29,24 +30,21 @@ type BracketRow = { upTo: string; rate: string };
 type ChildRow = { fromAge: string; toAge: string; mother: string; father: string };
 
 /** Small inline numeric input used in table-like rows. */
-function Cell({ value, onChangeText, label }: { value: string; onChangeText: (text: string) => void; label: string }) {
+function Cell({ value, onChangeText, label, currencyCode, suffix, editable = true }: {
+  value: string;
+  onChangeText: (text: string) => void;
+  label: string;
+  currencyCode?: string;
+  suffix?: string;
+  editable?: boolean;
+}) {
   return (
-    <View className="flex-1 gap-1">
+    <View className="min-w-0 flex-1 gap-1">
       <Text className="text-xs text-muted">{label}</Text>
-      <TextInputCell value={value} onChangeText={onChangeText} />
+      <View className="rounded-lg bg-surface-secondary px-2 py-1.5">
+        <NumericInput compact currencyCode={currencyCode} suffix={suffix} editable={editable} label={label} value={value} onChangeText={onChangeText} />
+      </View>
     </View>
-  );
-}
-
-function TextInputCell({ value, onChangeText }: { value: string; onChangeText: (text: string) => void }) {
-  return (
-    <TextInput
-      className="rounded-lg bg-surface-secondary px-2 py-1.5 font-sans text-base text-foreground"
-      keyboardType="decimal-pad"
-      selectTextOnFocus
-      value={value}
-      onChangeText={onChangeText}
-    />
   );
 }
 
@@ -150,11 +148,14 @@ function TaxSystemForm({ profile }: { profile: TaxProfile }) {
         {brackets.map((row, index) => (
           <View key={index} className="flex-row items-end gap-3 border-b-2 border-background px-4 py-2">
             <Cell
+              currencyCode="ILS"
+              editable={index !== brackets.length - 1}
               label={index === brackets.length - 1 ? t("taxSystem.above") : t("taxSystem.upTo")}
               value={index === brackets.length - 1 ? "∞" : row.upTo}
               onChangeText={(text) => setBrackets((current) => current.map((item, i) => (i === index ? { ...item, upTo: text } : item)))}
             />
             <Cell
+              suffix="%"
               label={t("taxSystem.ratePercent")}
               value={row.rate}
               onChangeText={(text) => setBrackets((current) => current.map((item, i) => (i === index ? { ...item, rate: text } : item)))}
@@ -178,7 +179,7 @@ function TaxSystemForm({ profile }: { profile: TaxProfile }) {
       </FormSection>
 
       <FormSection title={t("taxSystem.creditPoints")}>
-        <TextField keyboardType="decimal-pad" label={t("taxSystem.pointValue")} value={scalars.creditPointValue} onChangeText={scalar("creditPointValue")} />
+        <TextField keyboardType="decimal-pad" currencyCode="ILS" label={t("taxSystem.pointValue")} value={scalars.creditPointValue} onChangeText={scalar("creditPointValue")} />
         <TextField keyboardType="decimal-pad" label={t("taxSystem.resident")} value={scalars.resident} onChangeText={scalar("resident")} />
         <TextField keyboardType="decimal-pad" label={t("taxSystem.woman")} value={scalars.woman} onChangeText={scalar("woman")} />
         <TextField keyboardType="decimal-pad" label={t("taxSystem.singleParent")} value={scalars.singleParent} onChangeText={scalar("singleParent")} />
@@ -213,8 +214,8 @@ function TaxSystemForm({ profile }: { profile: TaxProfile }) {
       </FormSection>
 
       <FormSection title={t("taxSystem.thresholds")}>
-        <TextField keyboardType="decimal-pad" label={t("taxSystem.reducedUpTo")} value={scalars.threshold} onChangeText={scalar("threshold")} />
-        <TextField hint={t("taxSystem.ceilingHint")} keyboardType="decimal-pad" label={t("taxSystem.ceiling")} value={scalars.ceiling} onChangeText={scalar("ceiling")} />
+        <TextField keyboardType="decimal-pad" currencyCode="ILS" label={t("taxSystem.reducedUpTo")} value={scalars.threshold} onChangeText={scalar("threshold")} />
+        <TextField hint={t("taxSystem.ceilingHint")} keyboardType="decimal-pad" currencyCode="ILS" label={t("taxSystem.ceiling")} value={scalars.ceiling} onChangeText={scalar("ceiling")} />
       </FormSection>
 
       <FormSection title={t("taxSystem.niEmployee")}>

@@ -11,15 +11,19 @@ import { i18n } from "@/localization/i18n";
 import { creditPointLineLabel } from "@/localization/labels";
 import type { Gender, MaritalStatus, PersonalInfo } from "@/domain/tax/tax-status";
 import { ageOn, fromLocalDateKey, toLocalDateKey } from "@/domain/time/time";
+import { formatNumber } from "@/shared/lib/format";
+import { useAppLocalization } from "@/localization/localization-provider";
+import { ValueRow } from "@/shared/ui/section";
 import { Text } from "@/shared/ui/app-text";
 import { DateField } from "@/shared/ui/form/date-time-field";
-import { AddRow, FieldRow, FormSection, SegmentedField, SwitchField } from "@/shared/ui/form/fields";
+import { AddRow, FormSection, SegmentedField, SwitchField } from "@/shared/ui/form/fields";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import { QueryGate } from "@/shared/ui/query-gate";
 
 
 function PersonalInfoForm({ settings }: { settings: AppSettings }) {
   const { t } = useTranslation();
+  const { language } = useAppLocalization();
   const database = useSQLiteContext();
   const genders: { value: Gender; label: string }[] = [
     { value: "male", label: t("personal.male") },
@@ -110,13 +114,11 @@ function PersonalInfoForm({ settings }: { settings: AppSettings }) {
           title={t("personal.preview", { year: thisYear })}
         >
           {preview.lines.map((line, index) => (
-            <FieldRow key={`${line.code}-${index}`} label={creditPointLineLabel(line)}>
-              <Text>{(line.hundredths / 100).toFixed(2)}</Text>
-            </FieldRow>
+            <ValueRow key={`${line.code}-${index}`} className="border-b-2 border-background px-4 py-3" label={creditPointLineLabel(line)}
+              value={formatNumber(line.hundredths / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 }, language)} valueDirection="ltr" />
           ))}
-          <FieldRow label={t("personal.total")}>
-            <Text className="text-accent">{(preview.totalHundredths / 100).toFixed(2)}</Text>
-          </FieldRow>
+          <ValueRow className="px-4 py-3" emphasis label={t("personal.total")} valueClassName="text-accent"
+            value={formatNumber(preview.totalHundredths / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 }, language)} valueDirection="ltr" />
         </FormSection>
       ) : null}
     </FormScreen>

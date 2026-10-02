@@ -5,6 +5,11 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
 import { useDefaultJob, useJob, useSettings, useShift, useShiftTemplate, useShiftTemplates } from "@/data/hooks/queries";
+import { ensureHolidayDataForRange } from "@/data/holidays/holiday-service";
+import { useHolidayPremiums } from "@/data/hooks/use-holiday-premiums";
+import { HolidayPayNotice } from "@/shared/ui/holiday-pay-notice";
+import { FormSection } from "@/shared/ui/form/fields";
+import { ValueRow } from "@/shared/ui/section";
 import { createShift, deleteShift, updateShift } from "@/data/repositories/shifts-repository";
 import type { AppSettings, Job, Shift, ShiftTemplate } from "@/domain/entities";
 import { calculatePayForShift } from "@/domain/pay/period-summary";
@@ -17,7 +22,7 @@ import {
   startOfLocalDay,
   type LocalDateKey,
 } from "@/domain/time/time";
-import { formatHours, formatMoney, getDeviceTimeZone } from "@/shared/lib/format";
+import { formatHolidayTime, formatHours, formatMoney, formatPercent, formatStatementMoney, getDeviceTimeZone } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 import { FilledIcon } from "@/shared/ui/filled-icon";
 import { CardAction, CardRow, InputCard, PickerCard, ToggleCard } from "@/shared/ui/form/cards";
@@ -129,6 +134,8 @@ function ShiftForm({
 
   const endsNextDay = !values.isRunning && values.endMinute <= values.startMinute;
   const isHourly = job.payType === "hourly";
+  const previewRange = shiftRangeFromClockTimes(values.day, roundMinute(values.startMinute, settings.roundingMinutes), roundMinute(values.endMinute, settings.roundingMinutes));
+  const holidays = useHolidayPremiums(previewRange.start.toISOString(), previewRange.end.toISOString(), settings.holidayPay);
 
   function buildInput() {
     const step = settings.roundingMinutes;
@@ -175,6 +182,7 @@ function ShiftForm({
           deletedAt: null,
         },
         job,
+        holidays.data?.intervals,
       );
     }
   } catch {
@@ -183,18 +191,21 @@ function ShiftForm({
 
   async function save() {
     const input = buildInput();
+    const holidayLookup = await ensureHolidayDataForRange(database, input.startAt, input.endAt ?? previewRange.end, settings.holidayPay);
     if (existing) {
       await updateShift(database, existing.id, input);
       return;
     }
     const saved = await createShift(database, { ...input, timeZone: getDeviceTimeZone() });
-    const pay = calculatePayForShift(saved, job);
+    const pay = calculatePayForShift(saved, job, holidayLookup.intervals);
     if (settings.showShiftSummaryAfterSave && pay) {
       AppAlert.alert(
         t("shift.savedTitle"),
         [
           t("shift.savedWorked", { hours: formatHours(pay.workedMinutes) }),
           pay.overtimeMinutes > 0 ? t("shift.savedOvertime", { hours: formatHours(pay.overtimeMinutes) }) : null,
+          pay.holidayMinutes > 0 ? t("holidayPay.saved", { hours: formatHours(pay.holidayMinutes) }) : null,
+          holidayLookup.status !== "ready" && holidayLookup.status !== "disabled" ? t(`holidayPay.status.${holidayLookup.status}`) : null,
           pay.isNightShift ? t("shift.savedNight") : null,
           pay.isRestDay ? t("shift.savedRestDay") : null,
           t("shift.savedPay", { amount: formatMoney(pay.total, job.currencyCode) }),
@@ -369,6 +380,20 @@ function ShiftForm({
           </View>
         ) : null}
       </View>
+
+      <Text className="px-1 text-xs leading-5 text-muted">{t("holidayPay.manualHint")}</Text>
+      <HolidayPayNotice status={holidays.data?.status ?? (holidays.error ? "unavailable" : undefined)} />
+      {!values.isRunning && settings.holidayPay.enabled && !holidays.data && !holidays.error ? <Text className="px-1 text-xs text-muted">{t("holidayPay.loading")}</Text> : null}
+      {estimate && estimate.holidayMinutes > 0 ? (
+        <FormSection title={t("holidayPay.breakdown")} footnote={job.payRules.unpaidBreaks && Number(values.breakMinutes) > 0 ? t("holidayPay.breakPolicy") : undefined}>
+          {estimate.segments.map((segment, index) => (
+            <ValueRow key={index} className="border-b-2 border-background px-4 py-3"
+              label={t(segment.holiday ? "holidayPay.holiday" : "holidayPay.regular")}
+              note={segment.startsAt && segment.endsAt ? `${formatHolidayTime(new Date(segment.startsAt))} – ${formatHolidayTime(new Date(segment.endsAt))}` : undefined}
+              value={t("holidayPay.segment", { hours: formatHours(segment.minutes), rate: formatPercent(segment.rateBp), amount: formatStatementMoney(segment.amount, job.currencyCode) })} valueDirection="ltr" />
+          ))}
+        </FormSection>
+      ) : null}
 
       <SelectionSection
         addLabel={t("shift.newFixedShift")}

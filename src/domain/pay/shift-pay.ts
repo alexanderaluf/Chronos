@@ -1,15 +1,18 @@
 import {
   FULL_RATE_BP,
+  divideRounded,
   payForMinutes,
   type BasisPoints,
   type MinorUnits,
 } from "../money/money";
 import { minutesBetween, minutesInDailyWindow, minutesOnWeekdays } from "../time/time";
 import type { PayRules } from "./pay-rules";
+import { splitShiftByPremiumIntervals, type HolidayPremiumInterval } from "../holidays/premium-intervals";
 
 export type PayType = "hourly" | "monthly";
 
 export type ShiftPayInput = {
+  holidayIntervals?: readonly HolidayPremiumInterval[];
   startAt: Date;
   endAt: Date;
   breakMinutes: number;
@@ -25,6 +28,9 @@ export type ShiftPayInput = {
 export type PaySegmentKind = "regular" | "overtimeTier1" | "overtimeTier2";
 
 export type PaySegment = {
+  holiday?: boolean;
+  startsAt?: string;
+  endsAt?: string;
   kind: PaySegmentKind;
   minutes: number;
   rateBp: BasisPoints;
@@ -32,6 +38,8 @@ export type PaySegment = {
 };
 
 export type ShiftPay = {
+  holidayMinutes: number;
+  holidayPremium: MinorUnits;
   elapsedMinutes: number;
   workedMinutes: number;
   nightMinutes: number;
@@ -111,7 +119,7 @@ export function calculateShiftPay(input: ShiftPayInput): ShiftPay {
     };
   };
 
-  const segments = [
+  let segments = [
     segment("regular", regularMinutes),
     segment("overtimeTier1", tier1Minutes),
     segment("overtimeTier2", tier2Minutes),
@@ -122,6 +130,32 @@ export function calculateShiftPay(input: ShiftPayInput): ShiftPay {
     .filter((item) => item.kind !== "regular")
     .reduce((total, item) => total + item.amount, 0);
 
+  let holidayMinutes = 0;
+  let holidayWeightedMinutes = 0;
+  if (input.holidayIntervals?.length) {
+    let cursor = input.startAt.getTime();
+    segments = segments.flatMap((base) => {
+      const end = new Date(cursor + base.minutes * 60_000);
+      const slices = splitShiftByPremiumIntervals(new Date(cursor), end, input.holidayIntervals!);
+      cursor = end.getTime();
+      return slices.filter((slice) => slice.minutes > 0).map((slice) => {
+        const holiday = slice.holidayIds.length > 0;
+        const rateBp = Math.max(base.rateBp, slice.rateBp);
+        if (holiday) holidayMinutes += slice.minutes;
+        holidayWeightedMinutes += slice.minutes * (rateBp - base.rateBp);
+        const paidRate = base.kind === "regular" && input.payType === "monthly" ? Math.max(0, rateBp - FULL_RATE_BP) : rateBp;
+        return { kind: base.kind, minutes: slice.minutes, rateBp, amount: payForMinutes(input.hourlyRate, slice.minutes, paidRate),
+          holiday, startsAt: slice.start.toISOString(), endsAt: slice.end.toISOString() };
+      });
+    });
+  }
+  const holidayPremium = divideRounded(input.hourlyRate * holidayWeightedMinutes, 60 * FULL_RATE_BP);
+  // Keep the monetary segment breakdown consistent with the total after rounding.
+  if (segments.length && input.holidayIntervals?.length) {
+    const roundingDifference = basePay + overtimePay + holidayPremium - segments.reduce((sum, item) => sum + item.amount, 0);
+    segments[segments.length - 1].amount += roundingDifference;
+  }
+
   // Night premium applies to worked night minutes; a break is assumed outside the night window
   // only when there is enough day time to hold it.
   const workedNightMinutes = Math.min(nightMinutes, workedMinutes);
@@ -131,6 +165,8 @@ export function calculateShiftPay(input: ShiftPayInput): ShiftPay {
       : 0;
 
   return {
+    holidayMinutes,
+    holidayPremium,
     elapsedMinutes,
     workedMinutes,
     nightMinutes,
@@ -144,6 +180,6 @@ export function calculateShiftPay(input: ShiftPayInput): ShiftPay {
     nightPremium,
     bonus: input.bonus,
     tips: input.tips,
-    total: basePay + overtimePay + nightPremium + input.bonus + input.tips,
+    total: basePay + overtimePay + holidayPremium + nightPremium + input.bonus + input.tips,
   };
 }

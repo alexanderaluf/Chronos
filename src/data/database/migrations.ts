@@ -307,6 +307,18 @@ export const MIGRATIONS: Migration[] = [
       );
     },
   },
+  {
+    version: 4,
+    name: "cached Israeli holiday calendars",
+    async up(tx) {
+      await tx.execAsync(`CREATE TABLE holiday_year_cache (
+        cache_key TEXT PRIMARY KEY NOT NULL,
+        year INTEGER NOT NULL,
+        calendar_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL
+      );`);
+    },
+  },
 ];
 
 export const LATEST_DATABASE_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

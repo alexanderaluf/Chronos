@@ -3,6 +3,7 @@ import { Button } from "heroui-native";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
+import { useAppLocalization } from "@/localization/localization-provider";
 
 import { Text } from "../app-text";
 import { FilledIcon } from "../filled-icon";
@@ -25,8 +26,9 @@ export function ScreenHeader({
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
+  const { isRTL } = useAppLocalization();
   return (
-    <View className="h-14 flex-row items-center gap-3">
+    <View className="h-14 flex-row items-center gap-3" style={{ direction: "ltr" }}>
       <Button
         accessibilityLabel={t("common.back")}
         isDisabled={disabled}
@@ -36,7 +38,7 @@ export function ScreenHeader({
       >
         <FilledIcon name="arrow-left" size={24} />
       </Button>
-      <Text accessibilityRole="header" className="flex-1 font-manrope-bold text-xl text-foreground" numberOfLines={1}>
+      <Text accessibilityRole="header" className="flex-1 font-manrope-bold text-xl text-foreground" numberOfLines={1} style={{ direction: "ltr", textAlign: isRTL ? "right" : "left" }}>
         {title}
       </Text>
       {right}

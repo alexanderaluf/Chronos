@@ -12,6 +12,7 @@ import {
 } from "@/data/repositories/shift-templates-repository";
 import type { Job, ShiftTemplate } from "@/domain/entities";
 import { formatMinuteOfDay } from "@/domain/time/time";
+import { useAppLocalization } from "@/localization/localization-provider";
 import { Text } from "@/shared/ui/app-text";
 import { ColorPicker, SHIFT_COLORS } from "@/shared/ui/form/color-picker";
 import { TimeField } from "@/shared/ui/form/date-time-field";
@@ -25,6 +26,7 @@ import { i18n } from "@/localization/i18n";
 /** Route: /settings/templates */
 export function ShiftTemplatesScreen() {
   const { t } = useTranslation();
+  const { direction, isRTL } = useAppLocalization();
   const templates = useShiftTemplates();
   const items = templates.data ?? [];
   return (
@@ -39,11 +41,12 @@ export function ShiftTemplatesScreen() {
             key={template.id}
             accessibilityRole="button"
             className="flex-row items-center gap-3 border-b-2 border-background px-4 py-3.5 active:opacity-70"
+            style={{ direction }}
             onPress={() => router.push(`/settings/templates/${template.id}`)}
           >
             <View className="size-3 rounded-full" style={{ backgroundColor: template.color }} />
             <Text className="flex-1 text-base">{template.name}</Text>
-            <Text className="text-sm text-muted">
+            <Text className="text-sm text-muted" style={{ direction: "ltr", writingDirection: template.startMinute !== null ? "ltr" : direction, textAlign: isRTL ? "left" : "right", fontVariant: ["tabular-nums"] }}>
               {template.startMinute !== null && template.endMinute !== null
                 ? `${formatMinuteOfDay(template.startMinute)}–${formatMinuteOfDay(template.endMinute)}`
                 : t("templates.variableHours")}
@@ -125,10 +128,10 @@ function ShiftTemplateForm({ job, existing }: { job: Job; existing?: ShiftTempla
         <TextField keyboardType="number-pad" label={t("templates.break")} suffix={t("units.minutesSuffix")} value={breakMinutes} onChangeText={setBreakMinutes} />
       </FormSection>
       <FormSection footnote={t("templates.payNote")} title={t("templates.pay")}>
-        <TextField keyboardType="decimal-pad" label={t("templates.hourlyRate")} placeholder={minorToInput(job.hourlyRate)} value={hourlyRate} onChangeText={setHourlyRate} />
+        <TextField keyboardType="decimal-pad" currencyCode={job.currencyCode} label={t("templates.hourlyRate")} placeholder={minorToInput(job.hourlyRate)} value={hourlyRate} onChangeText={setHourlyRate} />
       </FormSection>
       <FormSection title={t("templates.additions")}>
-        <TextField hint={t("templates.bonusHint")} keyboardType="decimal-pad" label={t("templates.bonus")} value={bonus} onChangeText={setBonus} />
+        <TextField hint={t("templates.bonusHint")} keyboardType="decimal-pad" currencyCode={job.currencyCode} label={t("templates.bonus")} value={bonus} onChangeText={setBonus} />
       </FormSection>
     </FormScreen>
   );

@@ -1,6 +1,6 @@
 # Chronos local database
 
-All data is stored in one SQLite file on the device (`chronos.db`, via `expo-sqlite`). Nothing is sent to a server.
+All shift, salary and settings data is stored in one SQLite file on the device (`chronos.db`, via `expo-sqlite`). Holiday calendar requests send only the year and selected city coordinates to Hebcal; no shift or salary data is uploaded.
 
 ## Lifecycle
 
@@ -14,10 +14,11 @@ All data is stored in one SQLite file on the device (`chronos.db`, via `expo-sql
 
 If any step fails, the root `ErrorBoundary` shows the message. No data is deleted.
 
-## Tables (schema v3)
+## Tables (schema v4)
 
 | Table             | Holds                                         | Notes |
 | ----------------- | --------------------------------------------- | ----- |
+| `holiday_year_cache` | Normalized Hebcal events and candle-lighting/nightfall times | One row per year and selected city, or dates-only in custom mode. Fresh for 30 days, with stale-cache fallback offline. Added in v4. |
 | `settings`        | One row per preference (`key`, `value_json`)  | Includes personal info, tax status and employer details. New settings need no migration. Validated by `normalizeSettings`. |
 | `jobs`            | The job and how it pays                        | `pay_type` is hourly or monthly. `hourly_rate_minor` and `default_shift_bonus_minor` (v3) are the **global** rate and bonus copied onto new shifts. `pay_rules_json` holds overtime / night / rest-day rules (validated by `normalizePayRules`). Archived, never deleted. `travel_per_day_minor` is deprecated since v2. |
 | `shifts`          | Every shift                                    | `start_at` / `end_at` are ISO UTC. `end_at` is NULL while clocked in. `hourly_rate_minor` is a snapshot. Has `color` and `label`. Soft delete with `deleted_at`. |

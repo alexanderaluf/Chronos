@@ -30,6 +30,7 @@ export function ShiftRow({ item }: { item: ShiftWithPay }) {
         <Text className="text-xs text-muted">
           {formatTime(start)} – {end ? formatTime(end) : t("shiftRow.now")} · {formatHours(pay.workedMinutes)}
         </Text>
+        {pay.holidayMinutes > 0 ? <Text className="text-xs text-accent">{t("holidayPay.saved", { hours: formatHours(pay.holidayMinutes) })}</Text> : null}
       </View>
       {pay.isNightShift ? <FilledIcon name="night" size={16} tone="muted" /> : null}
       {pay.overtimeMinutes > 0 ? <Text className="text-xs text-warning">{t("shiftRow.overtimeBadge")}</Text> : null}

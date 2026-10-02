@@ -3,11 +3,13 @@ import { Pressable, TextInput, View, type KeyboardTypeOptions } from "react-nati
 import Animated, { Easing, FadeInDown, ReduceMotion } from "react-native-reanimated";
 
 import { useAppThemeColors } from "@/shared/theme/app-theme";
+import { useAppLocalization } from "@/localization/localization-provider";
 
 import { Text } from "../app-text";
 import { AppSwitch } from "../controls/app-switch";
 import { FilledIcon, type FilledIconName } from "../filled-icon";
 import { GlassSegmentedControl } from "../glass-segmented-control";
+import { NumericInput } from "./numeric-input";
 
 /**
  * Form building blocks in the Plutus design. Every field is controlled and
@@ -44,13 +46,14 @@ export function FormSection({
 
 /** One row inside a FormSection: label on the start side, control on the end side. */
 export function FieldRow({ label, hint, children }: PropsWithChildren<{ label: string; hint?: string }>) {
+  const { direction, isRTL } = useAppLocalization();
   return (
-    <View className="min-h-16 flex-row items-center gap-3 border-b-2 border-background px-4 py-3">
+    <View className="min-h-16 flex-row items-center gap-3 border-b-2 border-background px-4 py-3" style={{ direction }}>
       <View className="min-w-0 flex-1">
         <Text className="font-manrope-semibold text-base text-foreground">{label}</Text>
         {hint ? <Text className="mt-0.5 font-sans text-xs leading-4 text-muted">{hint}</Text> : null}
       </View>
-      <View className="max-w-[55%] shrink-0 items-end">{children}</View>
+      <View className="max-w-[55%] shrink-0" style={{ direction: "ltr", alignItems: isRTL ? "flex-start" : "flex-end" }}>{children}</View>
     </View>
   );
 }
@@ -64,12 +67,15 @@ type TextFieldProps = {
   keyboardType?: KeyboardTypeOptions;
   /** Text after the input, e.g. "₪", "%", "h". */
   suffix?: string;
+  /** Use the same number-then-symbol display as the Stats page. */
+  currencyCode?: string;
   multiline?: boolean;
 };
 
 /** Label + inline text input. Numeric fields align their value to the end. */
-export function TextField({ label, value, onChangeText, placeholder, hint, keyboardType, suffix, multiline }: TextFieldProps) {
+export function TextField({ label, value, onChangeText, placeholder, hint, keyboardType, suffix, currencyCode, multiline }: TextFieldProps) {
   const { muted } = useAppThemeColors();
+  const { direction, isRTL } = useAppLocalization();
   const numeric = keyboardType === "decimal-pad" || keyboardType === "number-pad";
 
   if (multiline) {
@@ -81,7 +87,7 @@ export function TextField({ label, value, onChangeText, placeholder, hint, keybo
           className="min-h-20 font-sans text-base text-foreground"
           placeholder={placeholder}
           placeholderTextColor={muted}
-          style={{ textAlignVertical: "top" }}
+          style={{ direction: "ltr", writingDirection: direction, textAlign: isRTL ? "right" : "left", textAlignVertical: "top" }}
           value={value}
           onChangeText={onChangeText}
         />
@@ -91,20 +97,23 @@ export function TextField({ label, value, onChangeText, placeholder, hint, keybo
 
   return (
     <FieldRow hint={hint} label={label}>
-      <View className="flex-row items-center gap-1">
-        <TextInput
-          accessibilityLabel={label}
-          className={`min-w-16 shrink font-manrope-semibold text-base text-foreground ${numeric ? "text-right" : ""}`}
-          keyboardType={keyboardType}
-          placeholder={placeholder}
-          placeholderTextColor={muted}
-          selectTextOnFocus={numeric}
-          style={{ fontVariant: numeric ? ["tabular-nums"] : undefined }}
-          value={value}
-          onChangeText={onChangeText}
-        />
-        {suffix ? <Text className="font-sans text-base text-muted">{suffix}</Text> : null}
-      </View>
+      {numeric || currencyCode ? (
+        <NumericInput currencyCode={currencyCode} keyboardType={keyboardType} label={label} placeholder={placeholder} suffix={suffix} value={value} onChangeText={onChangeText} />
+      ) : (
+        <View className="flex-row items-center gap-1">
+          <TextInput
+            accessibilityLabel={label}
+            className="min-w-16 shrink font-manrope-semibold text-base text-foreground"
+            keyboardType={keyboardType}
+            placeholder={placeholder}
+            placeholderTextColor={muted}
+            style={{ direction: "ltr", writingDirection: keyboardType === "email-address" ? "ltr" : direction, textAlign: isRTL ? "right" : "left" }}
+            value={value}
+            onChangeText={onChangeText}
+          />
+          {suffix ? <Text className="font-sans text-base text-muted">{suffix}</Text> : null}
+        </View>
+      )}
     </FieldRow>
   );
 }
@@ -165,12 +174,13 @@ export function LinkRow({
   value?: string;
   onPress: () => void;
 }) {
+  const { direction, isRTL } = useAppLocalization();
   return (
     <Pressable
       accessibilityHint={hint}
       accessibilityRole="button"
       className="min-h-19 flex-row items-center border-b-2 border-background px-4 py-3"
-      style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}
+      style={({ pressed }) => ({ direction, opacity: pressed ? 0.72 : 1 })}
       onPress={onPress}
     >
       {icon ? (
@@ -187,7 +197,7 @@ export function LinkRow({
         {hint ? <Text className="mt-0.5 font-sans text-sm leading-5 text-muted">{hint}</Text> : null}
       </View>
       {value ? (
-        <Text className="ms-2 max-w-[35%] font-manrope-medium text-sm text-muted" numberOfLines={1}>
+        <Text className="ms-2 max-w-[35%] font-manrope-medium text-sm text-muted" numberOfLines={1} style={{ direction: "ltr", textAlign: isRTL ? "left" : "right", fontVariant: ["tabular-nums"] }}>
           {value}
         </Text>
       ) : null}

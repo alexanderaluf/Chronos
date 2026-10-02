@@ -2,6 +2,51 @@ import type { Translation } from "./en";
 
 /** Hebrew — right-to-left. Keep keys identical to `en.ts` (enforced by the type). */
 export const he: Translation = {
+  holidayPay: {
+    title: "שכר חגים",
+    intro: "חישוב אוטומטי של עבודה בחגים המזכים בישראל לפי 150%.",
+    enabled: "חישוב שכר חגים",
+    hours: "שעות החג",
+    automatic: "אוטומטי",
+    custom: "שעות העבודה",
+    automaticHint: "זמני כניסת החג ויציאתו לפי עיר העבודה. ביום העצמאות: 20:00–20:00.",
+    customHint: "שעות מקום העבודה לכל החגים המזכים, כולל יום העצמאות. ההתחלה בערב שלפני החג והסיום בתאריך החג.",
+    city: "עיר העבודה",
+    chooseCity: "בחירת עיר העבודה",
+    start: "תחילת שכר החג",
+    end: "סיום שכר החג ביום הבא",
+    policy: "שכר החג קבוע על 150%, לפי שעון ישראל (Asia/Jerusalem). שינויים מחשבים מחדש משמרות קיימות. תעריפי שעות נוספות ומנוחה נשמרים; בחפיפה נבחר התעריף הגבוה.",
+    breakPolicy: "לא נשמר מועד ההפסקה. לצורך ההערכה, דקות הפסקה ללא תשלום מנוכות מסוף המשמרת.",
+    breakdown: "פירוט שכר המשמרת",
+    regular: "שעות רגילות / נוספות",
+    holiday: "שעות חג",
+    segment: "{{hours}} × {{rate}} · {{amount}}",
+    saved: "שעות חג בתעריף 150%: {{hours}}",
+    loading: "בדיקת לוח החגים…",
+    manualHint: "סוג היום הוא הגדרה ידנית לכל המשמרת. שכר החגים האוטומטי חל רק על שעות החג המזכות.",
+    attribution: "נתוני לוח השנה היהודי מסופקים על ידי Hebcal.",
+    source: "לוח השנה היהודי של Hebcal",
+    privacy: "שאילתות החגים שולחות ל-Hebcal את קואורדינטות העיר שנבחרה ואת שנת הלוח. המשמרות והשכר לעולם אינם מועלים.",
+    status: {
+      needsLocation: "יש לבחור עיר עבודה או שעות מותאמות כדי לחשב שכר חגים.",
+      unavailable: "נתוני החגים אינם זמינים. ההערכה עשויה לא לכלול שכר חגים. נסו שוב עם חיבור לרשת.",
+      missingTimes: "חלק מזמני כניסת החג או יציאתו חסרים. פרקי זמן שלא אומתו אינם נכללים; ניתן לבחור שעות מותאמות."
+    },
+    cities: {
+      jerusalem: "ירושלים",
+      telAviv: "תל אביב",
+      haifa: "חיפה",
+      beerSheva: "באר שבע",
+      eilat: "אילת"
+    }
+  },
+  dates: {
+    months: ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"],
+    shortMonths: ["ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יונ׳", "יול׳", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳"],
+    shortWeekdays: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
+    monthYear: "{{month}} {{year}}",
+    dayLabel: "{{weekday}}, {{day}} {{month}}",
+  },
   common: {
     ok: "אישור",
     cancel: "ביטול",
@@ -29,7 +74,7 @@ export const he: Translation = {
     tryAgain: "ניסיון חוזר",
     color: "צבע {{color}}",
     setUpSalaryFirst: "קודם יש להגדיר את השכר בהגדרות.",
-    localOnly: "כל הנתונים שלכם נשמרים רק במכשיר הזה. שום דבר לא נשלח לשרת.",
+    localOnly: "המשמרות והשכר נשמרים רק במכשיר הזה.",
   },
   units: {
     hours: "{{value}} ש׳",
@@ -66,6 +111,12 @@ export const he: Translation = {
     monthlyAdditionsHint: "בונוס או ניכוי חד־פעמי לחודש",
   },
   home: {
+    shiftListTitle: "המשמרות שלך",
+    shiftListEmpty: "אין משמרות בתקופה הזו",
+    shiftListHint: "לחצו על + להוספת משמרת, או עברו לחודש אחר.",
+    shiftListError: "לא ניתן לטעון את המשמרות. נסו שוב.",
+    nightShift: "משמרת לילה",
+    overtime: "שעות נוספות · {{hours}}",
     greetings: {
       night: "לילה טוב",
       morning: "בוקר טוב",
@@ -108,6 +159,9 @@ export const he: Translation = {
     nothingOnDay: "אין כלום ביום הזה.",
   },
   stats: {
+    loadError: "לא ניתן לטעון את דוח השכר. נסו שוב.",
+    breakdown: "פירוט השכר",
+    deductions: "סך הניכויים",
     mySalary: "השכר שלי",
     estimateNote:
       "הערכה לפי ההגדרות שלכם. התלוש בפועל עשוי להיות שונה (תיאום מס שנתי, זיכוי על הפקדות לפנסיה, רכיבים ייחודיים למעסיק).",
@@ -135,6 +189,10 @@ export const he: Translation = {
     notTaxable: "פטור ממס",
     creditPoints: "{{points}} נקודות זיכוי",
     lines: {
+      holidayPremium: "תוספת חג",
+      pensionFund: "קרן פנסיה",
+      studyFund: "קרן השתלמות",
+      travelForJob: "נסיעות — {{job}}",
       basePay: "שכר יסוד",
       salary: "משכורת — {{job}}",
       overtime: "שעות נוספות",

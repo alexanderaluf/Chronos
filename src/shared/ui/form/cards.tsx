@@ -3,6 +3,7 @@ import { Keyboard, Pressable, TextInput, View, type KeyboardTypeOptions } from "
 import { useTranslation } from "react-i18next";
 
 import { useAppThemeColors } from "@/shared/theme/app-theme";
+import { useAppLocalization } from "@/localization/localization-provider";
 
 import { Text } from "../app-text";
 import { AppSwitch } from "../controls/app-switch";
@@ -94,6 +95,7 @@ export function PickerCard({
   footnote?: string;
 }) {
   const { t } = useTranslation();
+  const { isRTL } = useAppLocalization();
   const [open, setOpen] = useState(false);
   return (
     <Pressable
@@ -108,7 +110,7 @@ export function PickerCard({
       }}
     >
       <CardLabel icon={icon ?? (mode === "date" ? "calendar" : "clock")} label={label} />
-      <Text className="font-manrope-semibold text-base text-foreground" numberOfLines={1} style={{ fontVariant: ["tabular-nums"] }}>
+      <Text className="font-manrope-semibold text-base text-foreground" numberOfLines={1} style={{ fontVariant: ["tabular-nums"], ...(mode === "time" ? { direction: "ltr" as const, writingDirection: "ltr" as const, textAlign: isRTL ? "left" as const : "right" as const } : {}) }}>
         {display}
       </Text>
       {footnote ? <Text className="font-sans text-xs text-accent">{footnote}</Text> : null}

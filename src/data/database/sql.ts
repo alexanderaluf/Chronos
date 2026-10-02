@@ -4,6 +4,7 @@ import type { SQLiteDatabase } from "expo-sqlite";
 /** Table names, so change listeners and queries agree on spelling. */
 export const TABLES = {
   settings: "settings",
+  holidayCache: "holiday_year_cache",
   jobs: "jobs",
   shifts: "shifts",
   payAdjustments: "pay_adjustments",

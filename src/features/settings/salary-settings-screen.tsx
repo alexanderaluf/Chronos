@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,7 +7,7 @@ import { useDefaultJob } from "@/data/hooks/queries";
 import { updateJob } from "@/data/repositories/jobs-repository";
 import type { Job } from "@/domain/entities";
 import type { PayType } from "@/domain/pay/shift-pay";
-import { FormSection, SegmentedField, SwitchField, TextField } from "@/shared/ui/form/fields";
+import { FormSection, LinkRow, SegmentedField, SwitchField, TextField } from "@/shared/ui/form/fields";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import { inputToMinor, inputToWholeNumber, minorToInput, required } from "@/shared/ui/form/input-format";
 import { QueryGate } from "@/shared/ui/query-gate";
@@ -53,10 +54,10 @@ function SalarySettingsForm({ job }: { job: Job }) {
         <TextField label={t("salary.jobName")} value={name} onChangeText={setName} />
         <SegmentedField label={t("salary.salaryType")} options={payTypes} value={payType} onChange={setPayType} />
         {payType === "hourly" ? (
-          <TextField keyboardType="decimal-pad" label={t("salary.hourlyWage")} value={hourlyRate} onChangeText={setHourlyRate} />
+          <TextField currencyCode={currencyCode.trim().toUpperCase() || job.currencyCode} keyboardType="decimal-pad" label={t("salary.hourlyWage")} value={hourlyRate} onChangeText={setHourlyRate} />
         ) : (
           <>
-            <TextField keyboardType="decimal-pad" label={t("salary.monthlySalary")} value={monthlySalary} onChangeText={setMonthlySalary} />
+            <TextField currencyCode={currencyCode.trim().toUpperCase() || job.currencyCode} keyboardType="decimal-pad" label={t("salary.monthlySalary")} value={monthlySalary} onChangeText={setMonthlySalary} />
             <TextField
               hint={t("salary.monthlyHoursHint")}
               keyboardType="number-pad"
@@ -72,7 +73,7 @@ function SalarySettingsForm({ job }: { job: Job }) {
         description={t("salary.bonusDescription")}
         title={t("salary.bonusTitle")}
       >
-        <TextField keyboardType="decimal-pad" label={t("salary.bonusTitle")} value={shiftBonus} onChangeText={setShiftBonus} />
+        <TextField currencyCode={currencyCode.trim().toUpperCase() || job.currencyCode} keyboardType="decimal-pad" label={t("salary.bonusTitle")} value={shiftBonus} onChangeText={setShiftBonus} />
       </FormSection>
       <FormSection title={t("salary.breaks")}>
         <SwitchField
@@ -81,6 +82,9 @@ function SalarySettingsForm({ job }: { job: Job }) {
           value={unpaidBreaks}
           onValueChange={setUnpaidBreaks}
         />
+      </FormSection>
+      <FormSection>
+        <LinkRow icon="calendar" iconBackground="#ffc975" label={t("holidayPay.title")} onPress={() => router.push("/settings/holiday-pay")} />
       </FormSection>
     </FormScreen>
   );

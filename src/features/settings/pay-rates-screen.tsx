@@ -7,7 +7,6 @@ import { useDefaultJob } from "@/data/hooks/queries";
 import { updateJob } from "@/data/repositories/jobs-repository";
 import type { Job } from "@/domain/entities";
 import { ISRAEL_DEFAULT_PAY_RULES, type PayRules } from "@/domain/pay/pay-rules";
-import { getAppLocale } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 import { TimeField } from "@/shared/ui/form/date-time-field";
 import { FormButton, FormSection, SwitchField, TextField } from "@/shared/ui/form/fields";
@@ -50,13 +49,9 @@ function toFields(rules: PayRules): RateFields {
   };
 }
 
-function weekdayName(day: number) {
-  // 4 Jan 2026 is a Sunday.
-  return new Date(2026, 0, 4 + day).toLocaleDateString(getAppLocale(), { weekday: "short" });
-}
-
 function PayRatesForm({ job }: { job: Job }) {
   const { t } = useTranslation();
+  const weekdays = t("dates.shortWeekdays", { returnObjects: true });
   const database = useSQLiteContext();
   const [rules, setRules] = useState(job.payRules);
   const [fields, setFields] = useState(() => toFields(job.payRules));
@@ -145,7 +140,7 @@ function PayRatesForm({ job }: { job: Job }) {
                   setRule("restDays", selected ? rules.restDays.filter((value) => value !== day) : [...rules.restDays, day].sort())
                 }
               >
-                <Text className={`text-xs ${selected ? "text-accent-foreground" : ""}`}>{weekdayName(day)}</Text>
+                <Text className={`text-xs ${selected ? "text-accent-foreground" : ""}`}>{weekdays[day]}</Text>
               </Pressable>
             );
           })}

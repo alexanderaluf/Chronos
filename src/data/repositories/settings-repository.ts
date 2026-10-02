@@ -9,6 +9,7 @@ import {
 } from "@/domain/tax/tax-status";
 
 import { nowIso, parseJson, writeTransaction } from "../database/sql";
+import { DEFAULT_HOLIDAY_PAY_SETTINGS, normalizeHolidayPaySettings } from "@/domain/holidays/holiday-settings";
 
 /** App preferences, stored one key per row so new settings never need a migration. */
 
@@ -25,6 +26,7 @@ export const ACCENT_COLOR_IDS: readonly AccentColorId[] = [
 const THEME_MODES: readonly ThemeMode[] = ["system", "light", "dark"];
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  holidayPay: DEFAULT_HOLIDAY_PAY_SETTINGS,
   appLanguage: null,
   themeMode: "system",
   accentColor: "cyan",
@@ -63,6 +65,7 @@ function stringOrNull(value: unknown): string | null {
 export function normalizeSettings(raw: Record<string, unknown>): AppSettings {
   const d = DEFAULT_SETTINGS;
   return {
+    holidayPay: normalizeHolidayPaySettings(raw.holidayPay),
     appLanguage: APP_LANGUAGES.includes(raw.appLanguage as never) ? (raw.appLanguage as AppSettings["appLanguage"]) : null,
     themeMode: pickOne(raw.themeMode, THEME_MODES, d.themeMode),
     accentColor: pickOne(raw.accentColor, ACCENT_COLOR_IDS, d.accentColor),

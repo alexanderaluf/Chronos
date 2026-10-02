@@ -4,6 +4,51 @@
  * Use `{{name}}` for interpolation (i18next).
  */
 export const en = {
+  holidayPay: {
+    title: "Holiday pay",
+    intro: "Automatically calculate eligible Israeli holiday work at 150%.",
+    enabled: "Holiday pay calculation",
+    hours: "Holiday hours",
+    automatic: "Automatic",
+    custom: "Workplace hours",
+    automaticHint: "Use holiday entry and exit times for your work city. Independence Day uses 20:00–20:00.",
+    customHint: "Use your workplace times for every eligible holiday, including Independence Day. Start is the evening before; end is on the holiday date.",
+    city: "Work city",
+    chooseCity: "Choose your work city",
+    start: "Holiday pay starts",
+    end: "Holiday pay ends next day",
+    policy: "Holiday pay is fixed at 150%, in Israel time (Asia/Jerusalem). Changes recalculate existing shifts. Existing overtime and rest-day rates are preserved; overlapping premiums use the higher rate.",
+    breakPolicy: "Breaks have no recorded time. For this estimate, unpaid break minutes are deducted from the end of the shift.",
+    breakdown: "Shift pay breakdown",
+    regular: "Regular / overtime",
+    holiday: "Holiday hours",
+    segment: "{{hours}} × {{rate}} · {{amount}}",
+    saved: "Holiday hours at 150%: {{hours}}",
+    loading: "Checking the holiday calendar…",
+    manualHint: "The day type is a manual whole-shift override. Automatic holiday pay applies only to eligible holiday hours.",
+    attribution: "Jewish calendar data provided by Hebcal.",
+    source: "Hebcal Jewish calendar",
+    privacy: "Holiday lookups send the selected city coordinates and calendar year to Hebcal. Your shifts and salary are never uploaded.",
+    status: {
+      needsLocation: "Choose a work city or use custom workplace hours to calculate holiday pay.",
+      unavailable: "Holiday data is unavailable. This estimate may exclude holiday pay. Try again when online.",
+      missingTimes: "Some holiday entry or exit times are missing. Unverified periods are excluded; you can use custom workplace hours."
+    },
+    cities: {
+      jerusalem: "Jerusalem",
+      telAviv: "Tel Aviv",
+      haifa: "Haifa",
+      beerSheva: "Be’er Sheva",
+      eilat: "Eilat"
+    }
+  },
+  dates: {
+    months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    shortMonths: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    shortWeekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    monthYear: "{{month}} {{year}}",
+    dayLabel: "{{weekday}}, {{day}} {{month}}",
+  },
   common: {
     ok: "OK",
     cancel: "Cancel",
@@ -31,7 +76,7 @@ export const en = {
     tryAgain: "Try again",
     color: "Color {{color}}",
     setUpSalaryFirst: "Set up your salary in Settings first.",
-    localOnly: "All your data is stored only on this device. Nothing is sent to a server.",
+    localOnly: "Your shifts and salary are stored only on this device.",
   },
   units: {
     hours: "{{value}} h",
@@ -68,6 +113,12 @@ export const en = {
     monthlyAdditionsHint: "One-off bonus or deduction for a month",
   },
   home: {
+    shiftListTitle: "Your shifts",
+    shiftListEmpty: "No shifts in this period",
+    shiftListHint: "Tap + to add a shift, or browse another month.",
+    shiftListError: "Couldn't load your shifts. Please try again.",
+    nightShift: "Night shift",
+    overtime: "Overtime · {{hours}}",
     greetings: {
       night: "Good night",
       morning: "Good morning",
@@ -110,6 +161,9 @@ export const en = {
     nothingOnDay: "Nothing on this day.",
   },
   stats: {
+    loadError: "Couldn't load the salary report. Please try again.",
+    breakdown: "Salary breakdown",
+    deductions: "Total deductions",
     mySalary: "My salary",
     estimateNote:
       "An estimate from your settings. Your payslip may differ (annual tax coordination, pension tax credits, employer-specific items).",
@@ -137,6 +191,10 @@ export const en = {
     notTaxable: "Not taxable",
     creditPoints: "{{points}} credit points",
     lines: {
+      holidayPremium: "Holiday premium",
+      pensionFund: "Pension fund",
+      studyFund: "Study fund",
+      travelForJob: "Travel — {{job}}",
       basePay: "Base pay",
       salary: "Salary — {{job}}",
       overtime: "Overtime",

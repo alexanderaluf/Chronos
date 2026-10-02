@@ -5,6 +5,7 @@ import type { TaxRules } from "../tax/tax-rules";
 import type { TaxStatus } from "../tax/tax-status";
 import { fromIso, toLocalDateKey, type LocalDateKey, type PayPeriod } from "../time/time";
 import { computePayslip, type Payslip, type PayslipLine } from "./payslip";
+import type { HolidayPremiumInterval } from "../holidays/premium-intervals";
 import { calculateShiftPay, type ShiftPay } from "./shift-pay";
 
 export type ShiftWithPay = { shift: Shift; job: Job; pay: ShiftPay };
@@ -19,6 +20,7 @@ export type DaySummary = {
 };
 
 export type PeriodSummary = {
+  holidayStatus?: "ready" | "disabled" | "needsLocation" | "unavailable" | "missingTimes";
   period: PayPeriod;
   shifts: ShiftWithPay[];
   paidDays: PaidDayWithPay[];
@@ -36,6 +38,7 @@ export type PeriodSummary = {
 };
 
 export type PeriodSummaryInput = {
+  holidayIntervals?: readonly HolidayPremiumInterval[];
   period: PayPeriod;
   /** Every job that may appear; monthly salaries are added for non-archived monthly jobs. */
   jobs: Job[];
@@ -57,9 +60,10 @@ export function jobHourlyValue(job: Job): MinorUnits {
   return job.hourlyRate;
 }
 
-export function calculatePayForShift(shift: Shift, job: Job): ShiftPay | null {
+export function calculatePayForShift(shift: Shift, job: Job, holidayIntervals: readonly HolidayPremiumInterval[] = []): ShiftPay | null {
   if (!shift.endAt || shift.deletedAt) return null;
   return calculateShiftPay({
+    holidayIntervals,
     startAt: fromIso(shift.startAt),
     endAt: fromIso(shift.endAt),
     breakMinutes: shift.breakMinutes,
@@ -93,7 +97,7 @@ export function summarizePeriod(input: PeriodSummaryInput): PeriodSummary {
 
   for (const shift of input.shifts) {
     const job = jobsById.get(shift.jobId);
-    const pay = job ? calculatePayForShift(shift, job) : null;
+    const pay = job ? calculatePayForShift(shift, job, input.holidayIntervals) : null;
     if (!job || !pay) continue;
     shifts.push({ shift, job, pay });
     const day = dayFor(toLocalDateKey(fromIso(shift.startAt)));
@@ -124,6 +128,7 @@ export function summarizePeriod(input: PeriodSummaryInput): PeriodSummary {
     ...monthlySalaries.map((job) => ({ key: `salary:${job.id}`, label: job.name, amount: job.monthlySalary })),
     { key: "overtime", label: "Overtime", amount: sum((item) => item.pay.overtimePay) },
     { key: "nightPremium", label: "Night premium", amount: sum((item) => item.pay.nightPremium) },
+    { key: "holidayPremium", label: "", amount: sum((item) => item.pay.holidayPremium) },
     { key: "paidDays", label: "Paid days off", amount: paidDays.reduce((total, item) => total + item.amount, 0) },
     { key: "shiftBonuses", label: "Shift bonuses", amount: sum((item) => item.pay.bonus) },
     { key: "tips", label: "Tips", amount: sum((item) => item.pay.tips) },

@@ -13,6 +13,7 @@ const FIXED_LINES = [
   "basePay",
   "overtime",
   "nightPremium",
+  "holidayPremium",
   "paidDays",
   "shiftBonuses",
   "tips",
@@ -29,6 +30,14 @@ export function payslipLineLabel(line: PayslipLine): string {
   if (line.key.startsWith("salary:")) {
     return i18n.t("payslip.lines.salary", { job: line.label });
   }
+  if (line.key.startsWith("component:")) {
+    if (line.label === "Pension fund") return i18n.t("payslip.lines.pensionFund");
+    if (line.label === "Study fund") return i18n.t("payslip.lines.studyFund");
+    if (line.label === "Travel") return i18n.t("payslip.lines.travel");
+    if (line.label.startsWith("Travel — ")) {
+      return i18n.t("payslip.lines.travelForJob", { job: line.label.slice("Travel — ".length) });
+    }
+  }
   return line.label;
 }
 
@@ -40,10 +49,10 @@ export function creditPointLineLabel(line: CreditPointLine): string {
 }
 
 /** "₪11 per work day", "5% of gross"… */
-export function describePayComponent(component: PayComponent, formatMoney: (amount: number) => string): string {
+export function describePayComponent(component: PayComponent, formatMoney: (amount: number) => string, formatPercentValue?: (percent: number) => string): string {
   if (component.calculation === "percentOfGross") {
     const percent = component.rateBp / 100;
-    const value = Number.isInteger(percent) ? String(percent) : percent.toFixed(2);
+    const value = formatPercentValue ? formatPercentValue(percent) : Number.isInteger(percent) ? String(percent) : percent.toFixed(2);
     return component.kind === "deduction"
       ? i18n.t("components.describe.percentOfGross", { percent: value })
       : i18n.t("components.describe.percentOfBase", { percent: value });

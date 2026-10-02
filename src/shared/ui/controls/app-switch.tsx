@@ -12,17 +12,12 @@ import { useAppLocalization } from "@/localization/localization-provider";
 import { useAppThemeColors } from "@/shared/theme/app-theme";
 
 import type { AppSwitchProps } from "./app-switch.types";
-
-const TRACK_WIDTH = 52;
-const TRACK_HEIGHT = 32;
-const THUMB = 24;
-const TRAVEL = TRACK_WIDTH - THUMB - 8;
+import { SWITCH_INSET, SWITCH_THUMB_SIZE, SWITCH_TRACK_HEIGHT, SWITCH_TRACK_WIDTH, switchThumbOffset } from "./app-switch-layout";
 
 /** Android: a toggle built from scratch (no native Switch / Compose). */
 export function AppSwitch({ value, onValueChange, disabled, accessibilityLabel }: AppSwitchProps) {
   const theme = useAppThemeColors();
-  // Transforms are not mirrored by the layout direction, so flip the travel in Hebrew.
-  const direction = useAppLocalization().isRTL ? -1 : 1;
+  const { isRTL } = useAppLocalization();
   const progress = useSharedValue(value ? 1 : 0);
 
   useEffect(() => {
@@ -34,7 +29,7 @@ export function AppSwitch({ value, onValueChange, disabled, accessibilityLabel }
   }));
   const thumbStyle = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(progress.get(), [0, 1], [theme.muted, theme.accentForeground]),
-    transform: [{ translateX: direction * progress.get() * TRAVEL }],
+    transform: [{ translateX: switchThumbOffset(progress.get(), isRTL) }],
   }));
 
   return (
@@ -56,15 +51,19 @@ export function AppSwitch({ value, onValueChange, disabled, accessibilityLabel }
 
 const styles = StyleSheet.create({
   track: {
-    borderRadius: TRACK_HEIGHT / 2,
-    height: TRACK_HEIGHT,
-    justifyContent: "center",
-    paddingHorizontal: 4,
-    width: TRACK_WIDTH,
+    // The thumb always starts at the physical left inset. Only its travel is mirrored.
+    direction: "ltr",
+    borderRadius: SWITCH_TRACK_HEIGHT / 2,
+    height: SWITCH_TRACK_HEIGHT,
+    overflow: "hidden",
+    width: SWITCH_TRACK_WIDTH,
   },
   thumb: {
-    borderRadius: THUMB / 2,
-    height: THUMB,
-    width: THUMB,
+    position: "absolute",
+    start: SWITCH_INSET,
+    top: SWITCH_INSET,
+    borderRadius: SWITCH_THUMB_SIZE / 2,
+    height: SWITCH_THUMB_SIZE,
+    width: SWITCH_THUMB_SIZE,
   },
 });

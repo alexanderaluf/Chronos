@@ -3,6 +3,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { DEFAULT_HOLIDAY_PAY_SETTINGS } from "./holidays/holiday-settings";
+import { createHolidayWindows } from "./holidays/holiday-windows";
+import { mergePremiumIntervals, splitShiftByPremiumIntervals, type HolidayCalendar } from "./holidays/premium-intervals";
+import { calendarDay, holidayYearsForRange, israelWallTime } from "./holidays/zoned-time";
 import type { Job, PaidDay, PayComponent, Shift } from "./entities";
 import { divideRounded, parseMajorToMinor, payForMinutes } from "./money/money";
 import { componentAmount } from "./pay/pay-components";
@@ -380,5 +384,98 @@ describe("period summary", () => {
       deductions: [],
     });
     assert.equal(payslip.gross, 4_263 * 186);
+  });
+});
+
+
+describe("holiday windows and shift pay", () => {
+  const wall = (day: string, hour: number, minute = 0) => israelWallTime(day, hour * 60 + minute);
+  const settings = { ...DEFAULT_HOLIDAY_PAY_SETTINGS, windowMode: "custom" as const, customEndMinute: 1140 };
+  const calendar: HolidayCalendar = { events: [{ id: "shavuot", name: "Shavuot", holidayDate: "2027-06-11", kind: "yomTov", source: "hebcal" }], times: [
+    { date: "2027-06-10", instant: wall("2027-06-10", 18, 15).toISOString(), kind: "candles" },
+    { date: "2027-06-11", instant: wall("2027-06-11", 19).toISOString(), kind: "havdalah" },
+  ] };
+  const intervals = createHolidayWindows(calendar, settings).intervals;
+  const base = { breakMinutes: 0, hourlyRate: 5000, payType: "hourly" as const, isHoliday: false, bonus: 0, tips: 0,
+    rules: { ...ISRAEL_DEFAULT_PAY_RULES, overtimeEnabled: false, restDays: [] }, holidayIntervals: intervals };
+  const pay = (day: string, from: number, to: number) => calculateShiftPay({ ...base, startAt: wall(day, from), endAt: wall(day, to) });
+
+  it("custom 18:00 overrides automatic 18:15: four regular and four holiday hours", () => {
+    const result = pay("2027-06-10", 14, 22);
+    assert.equal(result.holidayMinutes, 240);
+    assert.equal(result.total, 50000);
+    assert.deepEqual(result.segments.map((s) => [s.minutes, s.rateBp]), [[240, 10000], [240, 15000]]);
+  });
+  it("uses exact automatic 18:15 entry rather than whole hours", () => {
+    const automatic = createHolidayWindows(calendar, { ...settings, windowMode: "automatic", workCity: "telAviv" });
+    const result = calculateShiftPay({ ...base, startAt: wall("2027-06-10", 14), endAt: wall("2027-06-10", 22), holidayIntervals: automatic.intervals });
+    assert.equal(result.holidayMinutes, 225);
+    assert.deepEqual(result.segments.map((s) => s.minutes), [255, 225]);
+    assert.equal(result.total, 49375);
+  });
+  it("splits a shift at the 19:00 holiday exit", () => {
+    assert.deepEqual(pay("2027-06-11", 17, 21).segments.map((s) => [s.minutes, s.rateBp]), [[120, 15000], [120, 10000]]);
+  });
+  it("pays a wholly enclosed shift at 150%", () => { assert.equal(pay("2027-06-11", 8, 16).total, 60000); });
+  it("does not premium a shift outside the holiday", () => { assert.equal(pay("2027-06-10", 8, 16).total, 40000); });
+  it("handles an overnight shift without a midnight boundary", () => {
+    const result = calculateShiftPay({ ...base, startAt: wall("2027-06-10", 23), endAt: wall("2027-06-11", 7) });
+    assert.equal(result.holidayMinutes, 480); assert.equal(result.total, 60000);
+  });
+  it("merges consecutive overlapping holidays and preserves both identities", () => {
+    const consecutive: HolidayCalendar = { events: [calendar.events[0], { ...calendar.events[0], id: "second", holidayDate: "2027-06-12" }], times: [] };
+    const windows = createHolidayWindows(consecutive, settings).intervals;
+    assert.equal(windows.length, 1); assert.equal(windows[0].holidayIds.length, 2);
+    const slices = splitShiftByPremiumIntervals(wall("2027-06-11", 17), wall("2027-06-11", 21), windows);
+    assert.equal(slices.reduce((sum, item) => sum + item.minutes, 0), 240);
+    assert.ok(slices.every((slice) => slice.rateBp === 15000));
+    assert.equal(mergePremiumIntervals([...windows, ...windows]).length, 1);
+  });
+  it("does not stack holidays on existing rest-day rates", () => {
+    const result = calculateShiftPay({ ...base, startAt: wall("2027-06-11", 8), endAt: wall("2027-06-11", 16), isHoliday: true });
+    assert.equal(result.total, 60000); assert.equal(result.holidayPremium, 0);
+  });
+  const independence: HolidayCalendar = { events: [{ ...calendar.events[0], id: "independence", kind: "independence", holidayDate: "2027-05-12" }], times: [] };
+  it("uses 20:00–20:00 for Independence Day in automatic mode", () => {
+    const result = createHolidayWindows(independence, { ...settings, windowMode: "automatic" }).intervals[0];
+    assert.equal(result.startsAt, wall("2027-05-11", 20).toISOString());
+    assert.equal(result.endsAt, wall("2027-05-12", 20).toISOString());
+  });
+  it("custom hours override Independence Day's 20:00 rule", () => {
+    const result = createHolidayWindows(independence, settings).intervals[0];
+    assert.equal(result.startsAt, wall("2027-05-11", 18).toISOString());
+    assert.equal(result.endsAt, wall("2027-05-12", 19).toISOString());
+  });
+  it("loads both calendar years at December/January and supports future years", () => {
+    assert.deepEqual(holidayYearsForRange(wall("2031-12-31", 22), wall("2032-01-01", 6)), [2031, 2032]);
+    assert.equal(calendarDay("2032-01-01", -1), "2031-12-31");
+  });
+  it("uses calendar dates across both Jerusalem DST changes", () => {
+    const make = (day: string) => createHolidayWindows({ events: [{ ...calendar.events[0], holidayDate: day }], times: [] }, { ...settings, customEndMinute: 1080 }).intervals[0];
+    const spring = make("2026-03-27"), autumn = make("2026-10-25");
+    assert.equal((Date.parse(spring.endsAt) - Date.parse(spring.startsAt)) / 3600000, 23);
+    assert.equal((Date.parse(autumn.endsAt) - Date.parse(autumn.startsAt)) / 3600000, 25);
+    assert.equal(israelWallTime("2026-03-27", 150).toISOString(), "2026-03-27T00:30:00.000Z");
+    assert.equal(israelWallTime("2026-10-25", 90).toISOString(), "2026-10-24T22:30:00.000Z");
+  });
+  it("keeps overtime boundaries and higher overtime rates without multiplication", () => {
+    const result = calculateShiftPay({ ...base, startAt: wall("2027-06-10", 8), endAt: wall("2027-06-10", 22), rules: { ...base.rules, overtimeEnabled: true } });
+    assert.equal(result.regularMinutes, 516); assert.equal(result.overtimeMinutes, 324);
+    assert.ok(result.segments.every((s) => s.rateBp <= 15000));
+    assert.equal(result.segments.reduce((sum, s) => sum + s.amount, 0), result.total);
+  });
+  it("monthly pay adds only the premium above already-paid normal hours", () => {
+    const result = calculateShiftPay({ ...base, payType: "monthly", startAt: wall("2027-06-10", 14), endAt: wall("2027-06-10", 22) });
+    assert.equal(result.total, 10000); assert.equal(result.holidayPremium, 10000);
+  });
+  it("places unpaid break minutes at the end and never premiums them", () => {
+    const result = calculateShiftPay({ ...base, breakMinutes: 30, startAt: wall("2027-06-10", 14), endAt: wall("2027-06-10", 22) });
+    assert.equal(result.workedMinutes, 450); assert.equal(result.holidayMinutes, 210);
+    assert.equal(result.total, 46250);
+  });
+  it("does not invent automatic windows when entry or exit times are missing", () => {
+    const result = createHolidayWindows({ events: calendar.events, times: [] }, { ...settings, windowMode: "automatic" });
+    assert.equal(result.missingTimes, true); assert.deepEqual(result.intervals, []);
+    assert.deepEqual(createHolidayWindows(calendar, { ...settings, enabled: false }).intervals, []);
   });
 });

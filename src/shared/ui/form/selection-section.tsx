@@ -2,6 +2,7 @@ import { Pressable, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import Animated, { FadeInDown, FadeOutUp, LinearTransition, ReduceMotion } from "react-native-reanimated";
 
+import { useAppLocalization } from "@/localization/localization-provider";
 import { colorWithAlpha, useAppThemeColors } from "@/shared/theme/app-theme";
 
 import { Text } from "../app-text";
@@ -47,11 +48,12 @@ export function SelectionSection({
   addLabel?: string;
 }) {
   const { t } = useTranslation();
+  const { direction, isRTL } = useAppLocalization();
   const theme = useAppThemeColors();
   const selected = options.find((option) => option.id === selectedId);
 
   return (
-    <Animated.View className="border-b border-border pb-4" layout={LinearTransition.duration(220).reduceMotion(ReduceMotion.System)}>
+    <Animated.View style={{ direction }} className="border-b border-border pb-4" layout={LinearTransition.duration(220).reduceMotion(ReduceMotion.System)}>
       <Pressable
         accessibilityLabel={expanded ? t("common.collapse", { title }) : t("common.expand", { title })}
         accessibilityRole="button"
@@ -75,7 +77,7 @@ export function SelectionSection({
         <FilledIcon
           name="chevron-right"
           size={24}
-          style={{ transform: [{ rotate: expanded ? "-90deg" : "90deg" }] }}
+          style={{ transform: [{ rotate: expanded ? (isRTL ? "90deg" : "-90deg") : (isRTL ? "-90deg" : "90deg") }] }}
           tone={expanded ? "accent" : "foreground"}
         />
       </Pressable>

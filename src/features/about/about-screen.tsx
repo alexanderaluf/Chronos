@@ -1,6 +1,8 @@
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 
+import { Link } from "expo-router";
+
 import { Text } from "@/shared/ui/app-text";
 import { FieldRow, FormSection } from "@/shared/ui/form/fields";
 import { FormScreen } from "@/shared/ui/form/form-screen";
@@ -24,6 +26,12 @@ export function AboutScreen() {
             {point}
           </Text>
         ))}
+      </FormSection>
+      <FormSection title={t("holidayPay.source")}>
+        <Link href="https://www.hebcal.com" className="px-4 py-3">
+          <Text className="text-sm text-accent">{t("holidayPay.attribution")}</Text>
+        </Link>
+        <Text className="px-4 pb-4 text-sm text-muted">{t("holidayPay.privacy")}</Text>
       </FormSection>
       <FormSection title={t("about.important")}>
         {important.map((point) => (

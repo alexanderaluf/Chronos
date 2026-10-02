@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { colorWithAlpha, useAppThemeColors } from "@/shared/theme/app-theme";
+import { useAppLocalization } from "@/localization/localization-provider";
 
 import { Text } from "./app-text";
 import { SlidingIndicator, useIndicatorFrames } from "./sliding-indicator";
@@ -32,6 +33,7 @@ export function GlassSegmentedControl<Value extends string>({
   minHeight = 48,
 }: GlassSegmentedControlProps<Value>) {
   const colors = useAppThemeColors();
+  const { direction } = useAppLocalization();
   const { frames, onItemLayout } = useIndicatorFrames<Value>();
 
   return (
@@ -51,7 +53,7 @@ export function GlassSegmentedControl<Value extends string>({
           tint={colors.isDark ? "dark" : "light"}
         />
       ) : null}
-      <View style={styles.track}>
+      <View style={[styles.track, { direction }]}>
         <SlidingIndicator frame={frames[value]} style={[styles.indicator, { backgroundColor: colors.accent }]} />
         {options.map((option) => {
           const selected = option.value === value;

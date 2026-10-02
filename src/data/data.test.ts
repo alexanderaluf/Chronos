@@ -6,6 +6,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { readFileSync } from "node:fs";
+import { normalizeHebcalResponse, isPremiumHoliday, hebcalUrl, fetchHolidayYear } from "./holidays/hebcal-client";
+import { ensureHolidayDataForRange } from "./holidays/holiday-service";
+import { getHolidayYearCache, saveHolidayYearCache } from "./repositories/holiday-cache-repository";
+import { DEFAULT_HOLIDAY_PAY_SETTINGS, normalizeHolidayPaySettings } from "../domain/holidays/holiday-settings";
+import { createHolidayWindows } from "../domain/holidays/holiday-windows";
+import { israelWallTime } from "../domain/holidays/zoned-time";
+import type { HolidayCalendar } from "../domain/holidays/premium-intervals";
 import { loadPeriodReport, loadYearReport } from "./reports/period-report";
 import { createAdjustment } from "./repositories/adjustments-repository";
 import { listJobs, updateJob } from "./repositories/jobs-repository";
@@ -160,5 +168,136 @@ describe("other records", () => {
     assert.equal((await getNextPlannedShift(db, "2026-10-01"))?.startMinute, 420);
     await clearPlannedShift(db, "2026-10-05");
     assert.equal(await getNextPlannedShift(db, "2026-10-01"), null);
+  });
+});
+
+
+describe("Hebcal and holiday cache", () => {
+  const wall = (date: string, hour: number) => israelWallTime(date, hour * 60);
+  const settings = { ...DEFAULT_HOLIDAY_PAY_SETTINGS, windowMode: "custom" as const, customEndMinute: 1140 };
+  const calendar: HolidayCalendar = { events: [{ id: "holiday", name: "Shavuot", holidayDate: "2027-06-11", kind: "yomTov", source: "hebcal" }], times: [] };
+  const start = wall("2027-06-10", 14), end = wall("2027-06-10", 22);
+
+  it("recognizes only Yom Tov and Independence Day, including spelling variants", () => {
+    for (const title of ["Yom HaAtzma'ut", "Yom HaAtzma’ut", "Yom HaAtzmaut"]) {
+      assert.equal(isPremiumHoliday({ title, date: "2027-05-12", category: "holiday" }), true);
+    }
+    assert.equal(isPremiumHoliday({ title: "different", hebrew: "יום העצמאות", date: "2027-05-12", category: "holiday" }), true);
+    for (const title of ["Chanukah", "Purim", "Lag BaOmer", "Yom HaShoah", "Yom HaZikaron", "Pesach II (CH''M)", "Tzom Gedaliah", "Rosh Chodesh"]) {
+      assert.equal(isPremiumHoliday({ title, date: "2027-05-12", category: "holiday" }), false);
+    }
+    assert.equal(isPremiumHoliday({ title: "Pesach", date: "2027-05-12", category: "holiday", yomtov: true }), true);
+    assert.equal(isPremiumHoliday({ title: "Pesach", date: "2027-05-12", category: "other", yomtov: true }), false);
+  });
+  it("requests the Israel schedule, modern holidays, and selected location only", () => {
+    const params = new URL(hebcalUrl(2035, "telAviv")).searchParams;
+    for (const key of ["i", "maj", "mod", "c", "M"]) assert.equal(params.get(key), "on");
+    assert.equal(params.get("year"), "2035"); assert.equal(params.get("tzid"), "Asia/Jerusalem");
+    assert.equal(params.has("yto"), false);
+    assert.equal(new URL(hebcalUrl(2035, null)).searchParams.has("latitude"), false);
+  });
+  it("normalizes the live 2026 fixture and builds complete automatic windows", () => {
+    // Public API snapshot, Tel Aviv / Israel, fetched 2026-10-02. Data: Hebcal.com.
+    const result = normalizeHebcalResponse(JSON.parse(readFileSync(new URL("./testing/hebcal-2026-tel-aviv.json", import.meta.url), "utf8")));
+    assert.equal(result.events.length, 9);
+    assert.equal(result.events.filter((event) => event.kind === "independence").length, 1);
+    const windows = createHolidayWindows(result, { ...settings, windowMode: "automatic", workCity: "telAviv" });
+    assert.equal(windows.missingTimes, false); assert.equal(windows.intervals.length, 8);
+    const roshHashana = windows.intervals.find((item) => item.holidayIds.length === 2)!;
+    assert.equal(roshHashana.startsAt.slice(0, 10), "2026-09-11");
+    assert.equal(roshHashana.endsAt.slice(0, 10), "2026-09-13");
+  });
+  it("rejects empty, malformed and incomplete API responses", async () => {
+    for (const value of [null, {}, { items: [] }, { items: [{}] }, { items: [{ title: "Pesach", date: "2027-02-30", category: "holiday", yomtov: true }] }]) {
+      assert.throws(() => normalizeHebcalResponse(value));
+    }
+    await assert.rejects(fetchHolidayYear(2027, null, async () => new Response("{}", { status: 503 })), /503/);
+    await assert.rejects(fetchHolidayYear(2027, null, async () => new Response("not json")));
+    await assert.rejects(fetchHolidayYear(2027, null, async () => { throw new Error("Network unavailable"); }));
+  });
+  it("persists yearly caches and serves fresh data with no network request", async () => {
+    const db = await createTestDatabase();
+    await saveHolidayYearCache(db, "v1:2027:dates", 2027, calendar);
+    assert.deepEqual((await getHolidayYearCache(db, "v1:2027:dates"))?.calendar, calendar);
+    let calls = 0;
+    const result = await ensureHolidayDataForRange(db, start, end, settings, async () => { calls++; throw new Error("offline"); });
+    assert.equal(calls, 0); assert.equal(result.status, "ready"); assert.equal(result.intervals.length, 1);
+  });
+  it("uses stale cached data when offline", async () => {
+    const db = await createTestDatabase();
+    await saveHolidayYearCache(db, "v1:2027:dates", 2027, calendar);
+    await db.runAsync("UPDATE holiday_year_cache SET fetched_at = ?", "2020-01-01T00:00:00Z");
+    let calls = 0;
+    const loader = async () => { calls++; throw new Error("offline"); };
+    const result = await ensureHolidayDataForRange(db, start, end, settings, loader);
+    assert.equal(result.status, "ready"); assert.equal(result.intervals.length, 1);
+    await ensureHolidayDataForRange(db, start, end, settings, loader);
+    assert.equal(calls, 1, "failed requests back off instead of repeating each render");
+  });
+  it("fails gracefully without cached data and invents no premium", async () => {
+    const db = await createTestDatabase();
+    const result = await ensureHolidayDataForRange(db, start, end, settings, async () => { throw new Error("offline"); });
+    assert.equal(result.status, "unavailable"); assert.deepEqual(result.intervals, []);
+    assert.equal((await ensureHolidayDataForRange(db, start, end, DEFAULT_HOLIDAY_PAY_SETTINGS)).status, "needsLocation");
+    assert.equal((await ensureHolidayDataForRange(db, start, end, { ...settings, enabled: false })).status, "disabled");
+  });
+  it("deduplicates concurrent yearly requests and separates work cities", async () => {
+    const db = await createTestDatabase();
+    let calls = 0;
+    const loader = async () => { calls++; return calendar; };
+    await Promise.all(Array.from({ length: 5 }, () => ensureHolidayDataForRange(db, start, end, settings, loader)));
+    assert.equal(calls, 1);
+    await ensureHolidayDataForRange(db, start, end, { ...settings, windowMode: "automatic", workCity: "telAviv" }, loader);
+    await ensureHolidayDataForRange(db, start, end, { ...settings, windowMode: "automatic", workCity: "jerusalem" }, loader);
+    assert.equal(calls, 3);
+  });
+  it("fetches both years for overnight year transitions and any future year", async () => {
+    const db = await createTestDatabase();
+    const years: number[] = [];
+    await ensureHolidayDataForRange(db, wall("2031-12-31", 22), wall("2032-01-01", 6), settings, async (year) => { years.push(year); return calendar; });
+    assert.deepEqual(years.sort(), [2031, 2032]);
+  });
+  it("can switch from automatic to custom hours offline using already-downloaded dates", async () => {
+    const db = await createTestDatabase();
+    await ensureHolidayDataForRange(db, start, end, { ...settings, windowMode: "automatic", workCity: "telAviv" }, async () => calendar);
+    let calls = 0;
+    const result = await ensureHolidayDataForRange(db, start, end, settings, async () => { calls++; throw new Error("offline"); });
+    assert.equal(calls, 0);
+    assert.equal(result.status, "ready");
+    assert.equal(result.intervals[0].startsAt, wall("2027-06-10", 18).toISOString());
+  });
+  it("ignores corrupt cache data and does not calculate invented holidays", async () => {
+    const db = await createTestDatabase();
+    await saveHolidayYearCache(db, "v1:2027:dates", 2027, calendar);
+    for (const json of ["broken", '{"events":[{}],"times":[]}', '{"events":[],"times":[]}']) {
+      await db.runAsync("UPDATE holiday_year_cache SET calendar_json = ?", json);
+      assert.equal(await getHolidayYearCache(db, "v1:2027:dates"), null);
+    }
+    const result = await ensureHolidayDataForRange(db, start, end, settings, async () => { throw new Error("offline"); });
+    assert.equal(result.status, "unavailable");
+    assert.deepEqual(result.intervals, []);
+  });
+  it("normalizes persisted settings and fixes the premium at 150%", () => {
+    assert.deepEqual(normalizeHolidayPaySettings(null), DEFAULT_HOLIDAY_PAY_SETTINGS);
+    const normalized = normalizeHolidayPaySettings({ enabled: false, rateBp: 99999, timezone: "UTC", customStartMinute: -1, customEndMinute: 1140, workCity: "unknown" });
+    assert.equal(normalized.rateBp, 15000); assert.equal(normalized.timezone, "Asia/Jerusalem");
+    assert.equal(normalized.customStartMinute, 1080); assert.equal(normalized.customEndMinute, 1140); assert.equal(normalized.workCity, null);
+  });
+  it("recalculates saved shifts after global settings change without mutating history", async () => {
+    const db = await createTestDatabase();
+    const [job] = await listJobs(db);
+    await updateJob(db, job.id, { hourlyRate: 5000, payRules: { ...job.payRules, overtimeEnabled: false, restDays: [] } });
+    const shift = await createShift(db, { jobId: job.id, startAt: start, endAt: end, timeZone: "Asia/Jerusalem" });
+    await saveHolidayYearCache(db, "v1:2027:dates", 2027, calendar);
+    await updateSettings(db, { holidayPay: settings });
+    const before = await loadPeriodReport(db, "2027-06");
+    assert.equal(before.shifts[0].pay.total, 50000);
+    assert.equal(before.payslip.earnings.find((line) => line.key === "holidayPremium")?.amount, 10000);
+    await updateSettings(db, { holidayPay: { ...settings, customStartMinute: 1095 } });
+    const after = await loadPeriodReport(db, "2027-06");
+    assert.equal(after.shifts[0].pay.total, 49375);
+    assert.deepEqual(after.shifts[0].shift, shift);
+    await updateSettings(db, { holidayPay: { ...settings, enabled: false } });
+    assert.equal((await loadPeriodReport(db, "2027-06")).shifts[0].pay.total, 40000);
   });
 });

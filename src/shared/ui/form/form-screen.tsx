@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { errorMessage } from "@/localization/errors";
 import { i18n } from "@/localization/i18n";
+import { useAppLocalization } from "@/localization/localization-provider";
 import { colorWithAlpha, useAppThemeColors } from "@/shared/theme/app-theme";
 
-import { Text } from "../app-text";
+import { Text, TextAlignmentProvider } from "../app-text";
 import { ScreenHeader } from "../controls/screen-header";
 import { FilledIcon, type FilledIconName } from "../filled-icon";
 import { AppAlert } from "../overlay/app-alert";
@@ -64,6 +65,7 @@ export function FormScreen({
   children,
 }: FormScreenProps) {
   const { t } = useTranslation();
+  const { direction } = useAppLocalization();
   const insets = useSafeAreaInsets();
   const theme = useAppThemeColors();
   const primaryLabel = saveLabel ?? t("common.save");
@@ -86,81 +88,83 @@ export function FormScreen({
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.fill}>
-        <View style={styles.fill}>
-          <BlurTargetView ref={blurTarget} style={styles.fill}>
-            <ScrollView
-              automaticallyAdjustKeyboardInsets
-              contentContainerClassName="gap-5 px-5"
-              contentContainerStyle={{
-                paddingTop: topSpace,
-                paddingBottom: (onSave ? ACTION_DOCK_SPACE : 40) + insets.bottom,
-              }}
-              contentInsetAdjustmentBehavior="never"
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {intro ? <Text className="px-1 font-sans text-sm leading-5 text-muted">{intro}</Text> : null}
-              {children}
-              {footer}
-            </ScrollView>
-          </BlurTargetView>
+    <TextAlignmentProvider>
+      <View style={{ direction, flex: 1, backgroundColor: theme.background }}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.fill}>
+          <View style={styles.fill}>
+            <BlurTargetView ref={blurTarget} style={styles.fill}>
+              <ScrollView
+                automaticallyAdjustKeyboardInsets
+                contentContainerClassName="gap-5 px-5"
+                contentContainerStyle={{
+                  paddingTop: topSpace,
+                  paddingBottom: (onSave ? ACTION_DOCK_SPACE : 40) + insets.bottom,
+                }}
+                contentInsetAdjustmentBehavior="never"
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {intro ? <Text className="px-1 font-sans text-sm leading-5 text-muted">{intro}</Text> : null}
+                {children}
+                {footer}
+              </ScrollView>
+            </BlurTargetView>
 
-          <TopSafeAreaGradient />
-          <View style={[styles.header, { top: insets.top }]}>
-            <ScreenHeader disabled={saving} title={title} />
-          </View>
-          {topControl ? (
-            <View style={[styles.topControl, { top: insets.top + HEADER_HEIGHT + 8 }]}>{topControl}</View>
-          ) : null}
+            <TopSafeAreaGradient />
+            <View style={[styles.header, { top: insets.top }]}>
+              <ScreenHeader disabled={saving} title={title} />
+            </View>
+            {topControl ? (
+              <View style={[styles.topControl, { top: insets.top + HEADER_HEIGHT + 8 }]}>{topControl}</View>
+            ) : null}
 
-          {onSave ? (
-            <>
-              <BottomSafeAreaGradient />
-              <View pointerEvents="box-none" style={[styles.dock, { bottom: Math.max(insets.bottom, 10) }]}>
-                <Pressable
-                  accessibilityLabel={primaryLabel}
-                  accessibilityRole="button"
-                  accessibilityState={{ busy: saving, disabled: saving }}
-                  android_ripple={{ color: colorWithAlpha(theme.accentForeground, 0.16) }}
-                  disabled={saving}
-                  style={({ pressed }) => [
-                    styles.primary,
-                    secondaryAction ? styles.primarySplit : styles.primaryAlone,
-                    { backgroundColor: theme.accent },
-                    saving && styles.disabled,
-                    Platform.OS === "ios" && pressed && styles.pressed,
-                  ]}
-                  onPress={save}
-                >
-                  <FilledIcon name={saveIcon} size={24} tone="accent-foreground" />
-                  <Text className="shrink font-manrope-bold text-base text-accent-foreground" numberOfLines={1}>
-                    {saving ? t("common.saving") : primaryLabel}
-                  </Text>
-                </Pressable>
-                {secondaryAction ? (
+            {onSave ? (
+              <>
+                <BottomSafeAreaGradient />
+                <View pointerEvents="box-none" style={[styles.dock, { bottom: Math.max(insets.bottom, 10) }]}>
                   <Pressable
-                    accessibilityLabel={secondaryAction.label}
+                    accessibilityLabel={primaryLabel}
                     accessibilityRole="button"
+                    accessibilityState={{ busy: saving, disabled: saving }}
+                    android_ripple={{ color: colorWithAlpha(theme.accentForeground, 0.16) }}
                     disabled={saving}
                     style={({ pressed }) => [
-                      styles.secondary,
-                      { backgroundColor: secondaryAction.tone === "danger" ? theme.danger : theme.accent },
+                      styles.primary,
+                      secondaryAction ? styles.primarySplit : styles.primaryAlone,
+                      { backgroundColor: theme.accent },
                       saving && styles.disabled,
-                      pressed && styles.pressed,
+                      Platform.OS === "ios" && pressed && styles.pressed,
                     ]}
-                    onPress={secondaryAction.onPress}
+                    onPress={save}
                   >
-                    <FilledIcon name={secondaryAction.icon} size={26} tone="accent-foreground" />
+                    <FilledIcon name={saveIcon} size={24} tone="accent-foreground" />
+                    <Text className="shrink font-manrope-bold text-base text-accent-foreground" numberOfLines={1}>
+                      {saving ? t("common.saving") : primaryLabel}
+                    </Text>
                   </Pressable>
-                ) : null}
-              </View>
-            </>
-          ) : null}
-        </View>
-      </KeyboardAvoidingView>
-    </View>
+                  {secondaryAction ? (
+                    <Pressable
+                      accessibilityLabel={secondaryAction.label}
+                      accessibilityRole="button"
+                      disabled={saving}
+                      style={({ pressed }) => [
+                        styles.secondary,
+                        { backgroundColor: secondaryAction.tone === "danger" ? theme.danger : theme.accent },
+                        saving && styles.disabled,
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={secondaryAction.onPress}
+                    >
+                      <FilledIcon name={secondaryAction.icon} size={26} tone="accent-foreground" />
+                    </Pressable>
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </TextAlignmentProvider>
   );
 }
 

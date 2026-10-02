@@ -20,6 +20,7 @@ import { useLiveQuery } from "./use-live-query";
  */
 
 const REPORT_TABLES = [
+  TABLES.holidayCache,
   TABLES.shifts,
   TABLES.jobs,
   TABLES.payAdjustments,

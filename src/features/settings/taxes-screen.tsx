@@ -8,8 +8,10 @@ import { updateSettings } from "@/data/repositories/settings-repository";
 import type { AppSettings } from "@/domain/entities";
 import { calculateAutoCreditPoints } from "@/domain/tax/credit-points";
 import type { EmploymentType, TaxStatus } from "@/domain/tax/tax-status";
-import { Text } from "@/shared/ui/app-text";
-import { FieldRow, FormSection, LinkRow, SegmentedField, SwitchField, TextField } from "@/shared/ui/form/fields";
+import { formatNumber } from "@/shared/lib/format";
+import { useAppLocalization } from "@/localization/localization-provider";
+import { ValueRow } from "@/shared/ui/section";
+import { FormSection, LinkRow, SegmentedField, SwitchField, TextField } from "@/shared/ui/form/fields";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import {
   basisPointsToInput,
@@ -26,6 +28,7 @@ import { i18n } from "@/localization/i18n";
 
 function TaxesForm({ settings }: { settings: AppSettings }) {
   const { t } = useTranslation();
+  const { language } = useAppLocalization();
   const database = useSQLiteContext();
   const employment: { value: EmploymentType; label: string }[] = [
     { value: "employee", label: t("taxes.employee") },
@@ -81,9 +84,8 @@ function TaxesForm({ settings }: { settings: AppSettings }) {
         {creditPointsMode === "manual" ? (
           <TextField keyboardType="decimal-pad" label={t("taxes.points")} value={manualPoints} onChangeText={setManualPoints} />
         ) : (
-          <FieldRow label={t("taxes.points")}>
-            <Text className="text-accent">{autoPoints ? (autoPoints.totalHundredths / 100).toFixed(2) : "…"}</Text>
-          </FieldRow>
+          <ValueRow className="border-b-2 border-background px-4 py-3" label={t("taxes.points")} valueClassName="text-accent"
+            value={autoPoints ? formatNumber(autoPoints.totalHundredths / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 }, language) : t("common.loading")} valueDirection="ltr" />
         )}
         <LinkRow label={t("settingsMenu.personal")} onPress={() => router.push("/settings/personal")} />
       </FormSection>
@@ -101,6 +103,7 @@ function TaxesForm({ settings }: { settings: AppSettings }) {
         <TextField
           hint={t("taxes.benefitHint")}
           keyboardType="decimal-pad"
+          currencyCode="ILS"
           label={t("taxes.benefitValue")}
           value={benefit}
           onChangeText={setBenefit}
@@ -109,7 +112,7 @@ function TaxesForm({ settings }: { settings: AppSettings }) {
 
       <FormSection footnote={t("taxes.localityNote")} title={t("taxes.locality")}>
         <TextField keyboardType="decimal-pad" label={t("taxes.localityRate")} suffix="%" value={settlementRate} onChangeText={setSettlementRate} />
-        <TextField keyboardType="decimal-pad" label={t("taxes.localityCeiling")} value={settlementCeiling} onChangeText={setSettlementCeiling} />
+        <TextField keyboardType="decimal-pad" currencyCode="ILS" label={t("taxes.localityCeiling")} value={settlementCeiling} onChangeText={setSettlementCeiling} />
       </FormSection>
 
       <FormSection title={t("taxes.advanced")}>

@@ -2,8 +2,9 @@ import { router, type Href } from "expo-router";
 import { useTranslation } from "react-i18next";
 
 import { useDefaultJob, usePayComponents, useSettings, useShiftTemplates } from "@/data/hooks/queries";
-import { formatMoney } from "@/shared/lib/format";
-import { Text } from "@/shared/ui/app-text";
+import { formatStatementMoney } from "@/shared/lib/format";
+import { Text, TextAlignmentProvider } from "@/shared/ui/app-text";
+import { useAppLocalization } from "@/localization/localization-provider";
 import type { FilledIconName } from "@/shared/ui/filled-icon";
 import { FormSection, LinkRow } from "@/shared/ui/form/fields";
 import { TabPage } from "@/shared/ui/tab-page";
@@ -13,6 +14,7 @@ type MenuItem = { icon: FilledIconName; color: string; label: string; href: Href
 /** The Settings tab: every setup screen, grouped like a payslip. */
 export function SettingsScreen() {
   const { t } = useTranslation();
+  const { language } = useAppLocalization();
   const job = useDefaultJob();
   const settings = useSettings();
   const additions = usePayComponents("addition");
@@ -21,8 +23,8 @@ export function SettingsScreen() {
 
   const salaryValue = job.data
     ? job.data.payType === "hourly"
-      ? t("units.perHour", { amount: formatMoney(job.data.hourlyRate, job.data.currencyCode) })
-      : t("units.perMonth", { amount: formatMoney(job.data.monthlySalary, job.data.currencyCode) })
+      ? t("units.perHour", { amount: formatStatementMoney(job.data.hourlyRate, job.data.currencyCode, language) })
+      : t("units.perMonth", { amount: formatStatementMoney(job.data.monthlySalary, job.data.currencyCode, language) })
     : undefined;
   const count = (items?: unknown[]) => (items && items.length > 0 ? String(items.length) : undefined);
 
@@ -32,6 +34,7 @@ export function SettingsScreen() {
       items: [
         { icon: "person", color: "#a8b6f3", label: t("settingsMenu.personal"), href: "/settings/personal", hint: t("settingsMenu.personalHint") },
         { icon: "payments", color: "#9bd59b", label: t("settingsMenu.salary"), href: "/settings/salary", value: salaryValue },
+        { icon: "calendar", color: "#ffc975", label: t("holidayPay.title"), href: "/settings/holiday-pay" },
         { icon: "tune", color: "#f187ae", label: t("settingsMenu.rates"), href: "/settings/rates", hint: t("settingsMenu.ratesHint") },
         { icon: "trending-up", color: "#ffc975", label: t("settingsMenu.additions"), href: "/settings/additions", value: count(additions.data) },
         { icon: "trending-down", color: "#ff9c87", label: t("settingsMenu.deductions"), href: "/settings/deductions", value: count(deductions.data) },
@@ -55,26 +58,28 @@ export function SettingsScreen() {
   ];
 
   return (
-    <TabPage>
-      <Text accessibilityRole="header" className="pt-3 font-manrope-bold text-2xl text-foreground">
-        {t("settingsMenu.title")}
-      </Text>
-      {groups.map((group) => (
-        <FormSection key={group.title} title={group.title}>
-          {group.items.map((item) => (
-            <LinkRow
-              key={item.href as string}
-              hint={item.hint}
-              icon={item.icon}
-              iconBackground={item.color}
-              label={item.label}
-              value={item.value}
-              onPress={() => router.push(item.href)}
-            />
-          ))}
-        </FormSection>
-      ))}
-      <Text className="px-1 font-sans text-xs text-muted">{t("common.localOnly")}</Text>
-    </TabPage>
+    <TextAlignmentProvider>
+      <TabPage>
+        <Text accessibilityRole="header" className="pt-3 font-manrope-bold text-2xl text-foreground">
+          {t("settingsMenu.title")}
+        </Text>
+        {groups.map((group) => (
+          <FormSection key={group.title} title={group.title}>
+            {group.items.map((item) => (
+              <LinkRow
+                key={item.href as string}
+                hint={item.hint}
+                icon={item.icon}
+                iconBackground={item.color}
+                label={item.label}
+                value={item.value}
+                onPress={() => router.push(item.href)}
+              />
+            ))}
+          </FormSection>
+        ))}
+        <Text className="px-1 font-sans text-xs text-muted">{t("common.localOnly")}</Text>
+      </TabPage>
+    </TextAlignmentProvider>
   );
 }

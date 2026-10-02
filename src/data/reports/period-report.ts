@@ -11,6 +11,7 @@ import { listPayComponents } from "../repositories/pay-components-repository";
 import { getSettings } from "../repositories/settings-repository";
 import { listShiftsStartingBetween } from "../repositories/shifts-repository";
 import { getActiveTaxProfile } from "../repositories/tax-profiles-repository";
+import { ensureHolidayDataForRange } from "../holidays/holiday-service";
 
 /** Loads everything for one pay period and runs the salary calculation. */
 export async function loadPeriodReport(database: SQLiteDatabase, periodKey: PeriodKey): Promise<PeriodSummary> {
@@ -31,7 +32,10 @@ export async function loadPeriodReport(database: SQLiteDatabase, periodKey: Peri
     taxProfile.rules.creditPointRules,
     period.start.getFullYear(),
   );
-  return summarizePeriod({
+  const lastShiftEnd = Math.max(period.end.getTime(), ...shifts.map((shift) => shift.endAt ? Date.parse(shift.endAt) : 0));
+  const holidays = await ensureHolidayDataForRange(database, period.start, new Date(lastShiftEnd), settings.holidayPay);
+  return { ...summarizePeriod({
+    holidayIntervals: holidays.intervals,
     period,
     jobs,
     shifts,
@@ -41,7 +45,7 @@ export async function loadPeriodReport(database: SQLiteDatabase, periodKey: Peri
     taxRules: taxProfile.rules,
     taxStatus: settings.taxStatus,
     creditPoints,
-  });
+  }), holidayStatus: holidays.status };
 }
 
 export type YearMonth = { periodKey: PeriodKey; gross: number; net: number; workedMinutes: number; shiftCount: number };
