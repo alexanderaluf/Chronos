@@ -1,3 +1,4 @@
+import { normalizeSalaryAgreement } from "@/domain/pay/salary-agreement";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 import type { Shift } from "@/domain/entities";
@@ -8,6 +9,7 @@ import {
   fromSqlBoolean,
   newId,
   nowIso,
+  parseJson,
   toSqlBoolean,
   writeTransaction,
 } from "../database/sql";
@@ -23,6 +25,7 @@ import { getJob } from "./jobs-repository";
  */
 
 type ShiftRow = {
+  salary_agreement_json: string;
   id: string;
   job_id: string;
   start_at: string;
@@ -43,6 +46,7 @@ type ShiftRow = {
 
 function toShift(row: ShiftRow): Shift {
   return {
+    salaryAgreement: normalizeSalaryAgreement(parseJson(row.salary_agreement_json)),
     id: row.id,
     jobId: row.job_id,
     startAt: row.start_at,
@@ -178,8 +182,8 @@ export async function createShift(database: SQLiteDatabase, input: ShiftInput): 
     const now = nowIso();
     await db.runAsync(
       `INSERT INTO shifts (id, job_id, start_at, end_at, time_zone, break_minutes, hourly_rate_minor,
-         is_holiday, bonus_minor, tips_minor, note, color, label, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         is_holiday, bonus_minor, tips_minor, note, color, label, created_at, updated_at, salary_agreement_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.jobId,
       toIso(input.startAt),
@@ -195,6 +199,7 @@ export async function createShift(database: SQLiteDatabase, input: ShiftInput): 
       input.label?.trim() || null,
       now,
       now,
+      JSON.stringify(normalizeSalaryAgreement(job.payRules.salaryAgreement)),
     );
   });
   return (await getShift(database, id))!;

@@ -11,6 +11,7 @@ import { i18n } from "./i18n";
 
 const FIXED_LINES = [
   "basePay",
+  "agreementPay",
   "overtime",
   "nightPremium",
   "holidayPremium",

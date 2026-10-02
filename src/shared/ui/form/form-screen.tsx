@@ -19,6 +19,7 @@ import { BottomSafeAreaGradient, TopSafeAreaGradient } from "../safe-area-gradie
 const HEADER_HEIGHT = 56;
 const TOP_CONTROL_HEIGHT = 64;
 const ACTION_DOCK_SPACE = 148;
+const ACTION_DOCK_BOTTOM_GAP = 10;
 
 export type SecondaryAction = {
   icon: FilledIconName;
@@ -98,7 +99,7 @@ export function FormScreen({
                 contentContainerClassName="gap-5 px-5"
                 contentContainerStyle={{
                   paddingTop: topSpace,
-                  paddingBottom: (onSave ? ACTION_DOCK_SPACE : 40) + insets.bottom,
+                  paddingBottom: (onSave ? ACTION_DOCK_SPACE + ACTION_DOCK_BOTTOM_GAP : 40) + insets.bottom,
                 }}
                 contentInsetAdjustmentBehavior="never"
                 keyboardShouldPersistTaps="handled"
@@ -121,7 +122,7 @@ export function FormScreen({
             {onSave ? (
               <>
                 <BottomSafeAreaGradient />
-                <View pointerEvents="box-none" style={[styles.dock, { bottom: Math.max(insets.bottom, 10) }]}>
+                <View pointerEvents="box-none" style={[styles.dock, { bottom: insets.bottom + ACTION_DOCK_BOTTOM_GAP }]}>
                   <Pressable
                     accessibilityLabel={primaryLabel}
                     accessibilityRole="button"

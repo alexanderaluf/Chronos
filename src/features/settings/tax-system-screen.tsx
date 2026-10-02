@@ -39,11 +39,9 @@ function Cell({ value, onChangeText, label, currencyCode, suffix, editable = tru
   editable?: boolean;
 }) {
   return (
-    <View className="min-w-0 flex-1 gap-1">
+    <View className="min-w-0 basis-[45%] grow gap-1">
       <Text className="text-xs text-muted">{label}</Text>
-      <View className="rounded-lg bg-surface-secondary px-2 py-1.5">
-        <NumericInput compact currencyCode={currencyCode} suffix={suffix} editable={editable} label={label} value={value} onChangeText={onChangeText} />
-      </View>
+      <NumericInput compact currencyCode={currencyCode} suffix={suffix} editable={editable} label={label} value={value} onChangeText={onChangeText} />
     </View>
   );
 }
@@ -146,7 +144,7 @@ function TaxSystemForm({ profile }: { profile: TaxProfile }) {
     >
       <FormSection footnote={t("taxSystem.bracketsNote")} title={t("taxSystem.brackets")}>
         {brackets.map((row, index) => (
-          <View key={index} className="flex-row items-end gap-3 border-b-2 border-background px-4 py-2">
+          <View key={index} className="flex-row flex-wrap items-end gap-3 border-b-2 border-background px-4 py-3">
             <Cell
               currencyCode="ILS"
               editable={index !== brackets.length - 1}
@@ -191,7 +189,7 @@ function TaxSystemForm({ profile }: { profile: TaxProfile }) {
           const update = (key: keyof ChildRow) => (text: string) =>
             setChildren((current) => current.map((item, i) => (i === index ? { ...item, [key]: text } : item)));
           return (
-            <View key={index} className="flex-row items-end gap-2 border-b-2 border-background px-4 py-2">
+            <View key={index} className="flex-row flex-wrap items-end gap-3 border-b-2 border-background px-4 py-3">
               <Cell label={t("taxSystem.fromAge")} value={row.fromAge} onChangeText={update("fromAge")} />
               <Cell label={t("taxSystem.toAge")} value={row.toAge} onChangeText={update("toAge")} />
               <Cell label={t("taxSystem.mother")} value={row.mother} onChangeText={update("mother")} />

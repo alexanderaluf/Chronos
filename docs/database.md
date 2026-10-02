@@ -14,7 +14,7 @@ All shift, salary and settings data is stored in one SQLite file on the device (
 
 If any step fails, the root `ErrorBoundary` shows the message. No data is deleted.
 
-## Tables (schema v4)
+## Tables (schema v5)
 
 | Table             | Holds                                         | Notes |
 | ----------------- | --------------------------------------------- | ----- |
@@ -87,3 +87,11 @@ Validation failures throw `DataValidationError`, which has a human-readable `mes
 
 - Backup / export to a file (JSON + CSV) and restore. The recovery-copy directory already exists.
 - Restore from a recovery copy.
+
+## Salary supplement (v5)
+
+Salary rates optionally store `jobs.pay_rules_json.restWindow` with local `startDay`, `startMinute`, `endDay`, and `endMinute`. No schema migration is needed. Missing/null windows preserve the existing selected-weekday behavior. Custom windows repeat weekly and split worked time at exact boundaries, retaining overtime tiers and taking the higher overlapping holiday rate. Unpaid breaks are allocated at the end of a shift. Pay-rule edits refresh existing reports without changing saved hourly-rate or salary-supplement snapshots.
+
+Salary settings store an optional percentage supplement in `jobs.pay_rules_json.salaryAgreement`. Each new shift copies it to `shifts.salary_agreement_json`; legacy shifts default to disabled. Changing the job never rewrites those snapshots. The base hourly rate stays separate. Overtime, weekly rest and holidays independently exclude the supplement, add it without a multiplier, or multiply it by the applicable pay rate. Overlapping exclusions win, then flat addition. Night premium inclusion is separately configurable and still respects these exclusions.
+
+Monthly jobs add the supplement once to the global monthly salary; regular shift hours add only extra premiums, while overtime is paid in full as before. Paid days and the standalone quick calculator retain their existing base-rate calculations. No agreement names, sector rates, or legal entitlement are inferred.

@@ -127,13 +127,12 @@ function AdjustmentForm({ periodKey, initialKind, existing }: { periodKey: strin
       onSave={save}
     >
       <InputCard
-        icon="edit-note"
         label={t("adjustments.description")}
         placeholder={kind === "bonus" ? t("adjustments.bonusPlaceholder") : t("adjustments.deductionPlaceholder")}
         value={label}
         onChangeText={setLabel}
       />
-      <InputCard icon="payments" keyboardType="decimal-pad" label={t("adjustments.amount")} placeholder="0" value={amount} onChangeText={setAmount} />
+      <InputCard keyboardType="decimal-pad" label={t("adjustments.amount")} value={amount} onChangeText={setAmount} />
       {kind === "bonus" ? (
         <ToggleCard
           description={t("adjustments.taxableHint")}

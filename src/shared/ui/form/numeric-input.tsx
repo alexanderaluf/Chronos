@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { TextInput, View, type KeyboardTypeOptions } from "react-native";
+import type { KeyboardTypeOptions } from "react-native";
 
 import { parseMajorToMinor } from "@/domain/money/money";
 import { useAppLocalization } from "@/localization/localization-provider";
 import { currencyStatementParts } from "@/shared/lib/currency-display";
 import { formatNumber, getAppLocale } from "@/shared/lib/format";
-import { useAppThemeColors } from "@/shared/theme/app-theme";
 
 import { Text } from "../app-text";
+import { EditableInput } from "./editable-input";
 
 /** Format when idle; keep raw decimal input while editing so parsing and the caret stay stable. */
 export function NumericInput({ value, onChangeText, label, placeholder, currencyCode, suffix, keyboardType = "decimal-pad", editable = true, compact = false }: {
@@ -22,7 +22,6 @@ export function NumericInput({ value, onChangeText, label, placeholder, currency
   compact?: boolean;
 }) {
   const { isRTL, language } = useAppLocalization();
-  const { muted } = useAppThemeColors();
   const [editing, setEditing] = useState(false);
   // Subscribe to app language even while an unchanged numeric value is displayed.
   const locale = getAppLocale(language);
@@ -38,22 +37,21 @@ export function NumericInput({ value, onChangeText, label, placeholder, currency
   }
 
   return (
-    <View className="max-w-full flex-row items-center gap-1" style={{ direction: "ltr" }}>
-      <TextInput
-        accessibilityLabel={label}
-        className={`${compact ? "min-w-0 flex-1" : "min-w-16 shrink"} font-manrope-semibold text-base text-foreground`}
-        editable={editable}
-        keyboardType={keyboardType}
-        placeholder={placeholder}
-        placeholderTextColor={muted}
-        selectTextOnFocus
-        style={{ direction: "ltr", writingDirection: "ltr", textAlign: isRTL ? "left" : "right", fontVariant: ["tabular-nums"] }}
-        value={display}
-        onBlur={() => setEditing(false)}
-        onChangeText={onChangeText}
-        onFocus={() => setEditing(true)}
-      />
-      {unit ? <Text className="shrink-0 text-base text-muted" style={{ direction: "ltr" }}>{unit}</Text> : null}
-    </View>
+    <EditableInput
+      numeric
+      compact={compact}
+      containerClassName="w-full"
+      label={label}
+      trailing={unit ? <Text className="shrink-0 text-base text-muted" style={{ direction: "ltr" }}>{unit}</Text> : undefined}
+      editable={editable}
+      keyboardType={keyboardType}
+      placeholder={placeholder}
+      selectTextOnFocus
+      style={{ direction: "ltr", writingDirection: "ltr", textAlign: isRTL ? "left" : "right", fontVariant: ["tabular-nums"] }}
+      value={display}
+      onBlur={() => setEditing(false)}
+      onChangeText={onChangeText}
+      onFocus={() => setEditing(true)}
+    />
   );
 }

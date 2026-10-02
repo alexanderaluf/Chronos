@@ -36,6 +36,8 @@ export type Job = {
 };
 
 export type Shift = {
+  /** Supplement rules copied on creation; absent on legacy records means disabled. */
+  salaryAgreement?: import("./pay/salary-agreement").SalaryAgreement;
   id: string;
   jobId: string;
   startAt: string;

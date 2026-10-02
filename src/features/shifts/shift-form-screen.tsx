@@ -8,11 +8,11 @@ import { useDefaultJob, useJob, useSettings, useShift, useShiftTemplate, useShif
 import { ensureHolidayDataForRange } from "@/data/holidays/holiday-service";
 import { useHolidayPremiums } from "@/data/hooks/use-holiday-premiums";
 import { HolidayPayNotice } from "@/shared/ui/holiday-pay-notice";
-import { FormSection } from "@/shared/ui/form/fields";
-import { ValueRow } from "@/shared/ui/section";
 import { createShift, deleteShift, updateShift } from "@/data/repositories/shifts-repository";
 import type { AppSettings, Job, Shift, ShiftTemplate } from "@/domain/entities";
 import { calculatePayForShift } from "@/domain/pay/period-summary";
+import { normalizeSalaryAgreement } from "@/domain/pay/salary-agreement";
+import { ShiftPayBreakdown } from "./components/shift-pay-breakdown";
 import {
   formatMinuteOfDay,
   fromIso,
@@ -22,7 +22,7 @@ import {
   startOfLocalDay,
   type LocalDateKey,
 } from "@/domain/time/time";
-import { formatHolidayTime, formatHours, formatMoney, formatPercent, formatStatementMoney, getDeviceTimeZone } from "@/shared/lib/format";
+import { formatHours, formatMoney, getDeviceTimeZone } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 import { FilledIcon } from "@/shared/ui/filled-icon";
 import { CardAction, CardRow, InputCard, PickerCard, ToggleCard } from "@/shared/ui/form/cards";
@@ -31,7 +31,6 @@ import { formatPickerDate, minuteToReferenceDate } from "@/shared/ui/form/date-t
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import { inputToMinor, inputToWholeNumber, minorToInput, required } from "@/shared/ui/form/input-format";
 import { SelectionSection } from "@/shared/ui/form/selection-section";
-import { GlassSegmentedControl } from "@/shared/ui/glass-segmented-control";
 import { AppAlert } from "@/shared/ui/overlay/app-alert";
 import { i18n } from "@/localization/i18n";
 import { LoadingScreen, QueryGate } from "@/shared/ui/query-gate";
@@ -47,7 +46,6 @@ type FormValues = {
   /** null = use the global bonus per shift from Salary settings. */
   customBonus: string | null;
   tips: string;
-  isHoliday: boolean;
   color: string;
   label: string;
   note: string;
@@ -99,8 +97,7 @@ function GlobalValueCard({
       <InputCard
         keyboardType="decimal-pad"
         label={t("shift.thisShift", { label })}
-        placeholder={currencySymbol(currency)}
-        trailing={<CardAction label={t("common.global")} onPress={() => onCustomChange(null)} />}
+        action={<CardAction label={t("common.global")} onPress={() => onCustomChange(null)} />}
         value={custom}
         onChangeText={(text) => onCustomChange(text)}
       />
@@ -123,17 +120,14 @@ function ShiftForm({
   const { t } = useTranslation();
   const database = useSQLiteContext();
   const templates = useShiftTemplates();
-  const dayTypes = [
-    { value: "regular", label: t("shift.regularDay") },
-    { value: "holiday", label: t("shift.holiday") },
-  ] as const;
   const [values, setValues] = useState(initial);
-  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(!existing && !initial.templateId);
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
 
   const endsNextDay = !values.isRunning && values.endMinute <= values.startMinute;
   const isHourly = job.payType === "hourly";
+  const agreement = normalizeSalaryAgreement(existing ? existing.salaryAgreement : job.payRules.salaryAgreement);
   const previewRange = shiftRangeFromClockTimes(values.day, roundMinute(values.startMinute, settings.roundingMinutes), roundMinute(values.endMinute, settings.roundingMinutes));
   const holidays = useHolidayPremiums(previewRange.start.toISOString(), previewRange.end.toISOString(), settings.holidayPay);
 
@@ -149,7 +143,8 @@ function ShiftForm({
         values.customHourlyRate === null ? job.hourlyRate : required(inputToMinor(values.customHourlyRate), i18n.t("shift.fields.hourlyRate")),
       bonus: values.customBonus === null ? job.defaultShiftBonus : required(inputToMinor(values.customBonus), i18n.t("shift.fields.bonus")),
       tips: required(inputToMinor(values.tips), i18n.t("shift.fields.tips")),
-      isHoliday: values.isHoliday,
+      // New records use exact automatic holiday intervals; keep legacy saved overrides intact.
+      isHoliday: existing?.isHoliday ?? false,
       color: values.color,
       label: values.label,
       note: values.note,
@@ -165,6 +160,7 @@ function ShiftForm({
       estimate = calculatePayForShift(
         {
           id: "draft",
+          salaryAgreement: existing ? existing.salaryAgreement : job.payRules.salaryAgreement,
           jobId: input.jobId,
           startAt: input.startAt.toISOString(),
           endAt: input.endAt.toISOString(),
@@ -232,6 +228,7 @@ function ShiftForm({
       color: template.color,
       label: template.name,
     }));
+    setTemplatesOpen(false);
   }
 
   function confirmDelete() {
@@ -249,7 +246,7 @@ function ShiftForm({
     ]);
   }
 
-  const templateOptions = (templates.data ?? []).map((template) => ({
+  const templateOptions = (templates.data ?? []).filter((template) => template.jobId === job.id).map((template) => ({
     id: template.id,
     name: template.name,
     color: template.color,
@@ -264,18 +261,25 @@ function ShiftForm({
       saveLabel={existing ? t("common.saveChanges") : t("shift.addShift")}
       secondaryAction={existing ? { icon: "delete", label: t("shift.deleteShift"), onPress: confirmDelete, tone: "danger" } : undefined}
       title={existing ? t("shift.editTitle") : t("shift.newTitle")}
-      topControl={
-        <GlassSegmentedControl
-          accessibilityLabel={t("shift.dayType")}
-          options={dayTypes}
-          value={values.isHoliday ? "holiday" : "regular"}
-          onChange={(value) => set("isHoliday", value === "holiday")}
-        />
-      }
       onSave={save}
     >
+      <View className="gap-2">
+        <SelectionSection
+          addLabel={t("shift.newFixedShift")}
+          expanded={templatesOpen}
+          icon="repeat"
+          optional
+          options={templateOptions}
+          placeholder={t("shift.fixedShiftPlaceholder")}
+          selectedId={values.templateId}
+          title={t("shift.fixedShift")}
+          onAdd={() => router.push("/settings/templates/new")}
+          onSelect={(id) => applyTemplate(templates.data?.find((template) => template.id === id && template.jobId === job.id))}
+          onToggle={() => setTemplatesOpen((open) => !open)}
+        />
+        <Text className="px-1 text-xs leading-5 text-muted">{t("templates.selectionHint")}</Text>
+      </View>
       <InputCard
-        icon="edit-note"
         label={t("shift.name")}
         placeholder={t("shift.namePlaceholder")}
         value={values.label}
@@ -327,7 +331,6 @@ function ShiftForm({
       ) : null}
 
       <InputCard
-        icon="clock"
         keyboardType="number-pad"
         label={job.payRules.unpaidBreaks ? t("shift.breakUnpaid") : t("shift.breakPaid")}
         trailing={<Text className="font-sans text-base text-muted">{t("units.minutesSuffix")}</Text>}
@@ -343,7 +346,7 @@ function ShiftForm({
               currency={job.currencyCode}
               custom={values.customHourlyRate}
               globalValue={job.hourlyRate}
-              label={t("shift.hourlyRate")}
+              label={t("shift.baseHourlyRate")}
               onCustomChange={(value) => set("customHourlyRate", value)}
             />
           ) : null}
@@ -355,8 +358,8 @@ function ShiftForm({
             onCustomChange={(value) => set("customBonus", value)}
           />
         </CardRow>
+        {estimate ? <ShiftPayBreakdown pay={estimate} agreement={agreement} currency={job.currencyCode} isHourly={isHourly} hasUnpaidBreak={job.payRules.unpaidBreaks && Number(values.breakMinutes) > 0} /> : null}
         <InputCard
-          icon="payments"
           keyboardType="decimal-pad"
           label={t("shift.tips")}
           trailing={<Text className="font-sans text-base text-muted">{currencySymbol(job.currencyCode)}</Text>}
@@ -381,33 +384,10 @@ function ShiftForm({
         ) : null}
       </View>
 
-      <Text className="px-1 text-xs leading-5 text-muted">{t("holidayPay.manualHint")}</Text>
+      <Text className="px-1 text-xs leading-5 text-muted">{t("shift.automaticRatesHint")}</Text>
+      {existing?.isHoliday ? <Text className="px-1 text-xs leading-5 text-muted">{t("shift.legacyHolidayOverride")}</Text> : null}
       <HolidayPayNotice status={holidays.data?.status ?? (holidays.error ? "unavailable" : undefined)} />
       {!values.isRunning && settings.holidayPay.enabled && !holidays.data && !holidays.error ? <Text className="px-1 text-xs text-muted">{t("holidayPay.loading")}</Text> : null}
-      {estimate && estimate.holidayMinutes > 0 ? (
-        <FormSection title={t("holidayPay.breakdown")} footnote={job.payRules.unpaidBreaks && Number(values.breakMinutes) > 0 ? t("holidayPay.breakPolicy") : undefined}>
-          {estimate.segments.map((segment, index) => (
-            <ValueRow key={index} className="border-b-2 border-background px-4 py-3"
-              label={t(segment.holiday ? "holidayPay.holiday" : "holidayPay.regular")}
-              note={segment.startsAt && segment.endsAt ? `${formatHolidayTime(new Date(segment.startsAt))} – ${formatHolidayTime(new Date(segment.endsAt))}` : undefined}
-              value={t("holidayPay.segment", { hours: formatHours(segment.minutes), rate: formatPercent(segment.rateBp), amount: formatStatementMoney(segment.amount, job.currencyCode) })} valueDirection="ltr" />
-          ))}
-        </FormSection>
-      ) : null}
-
-      <SelectionSection
-        addLabel={t("shift.newFixedShift")}
-        expanded={templatesOpen}
-        icon="repeat"
-        optional
-        options={templateOptions}
-        placeholder={t("shift.fixedShiftPlaceholder")}
-        selectedId={values.templateId}
-        title={t("shift.fixedShift")}
-        onAdd={() => router.push("/settings/templates/new")}
-        onSelect={(id) => applyTemplate(templates.data?.find((template) => template.id === id))}
-        onToggle={() => setTemplatesOpen((open) => !open)}
-      />
 
       <View className="gap-3">
         <Text className="px-1 font-manrope-bold text-lg text-foreground">{t("shift.color")}</Text>
@@ -417,7 +397,6 @@ function ShiftForm({
       </View>
 
       <InputCard
-        icon="notes"
         label={t("shift.notes")}
         multiline
         placeholder={t("shift.notesPlaceholder")}
@@ -438,7 +417,6 @@ function valuesForNewShift(job: Job, date: LocalDateKey | undefined, template: S
     customHourlyRate: template?.hourlyRate != null ? minorToInput(template.hourlyRate) : null,
     customBonus: template && template.bonus > 0 ? minorToInput(template.bonus) : null,
     tips: "0",
-    isHoliday: false,
     color: template?.color ?? job.color,
     label: template?.name ?? "",
     note: "",
@@ -459,7 +437,6 @@ function valuesForExistingShift(shift: Shift, job: Job): FormValues {
     customHourlyRate: shift.hourlyRate === job.hourlyRate ? null : minorToInput(shift.hourlyRate),
     customBonus: shift.bonus === job.defaultShiftBonus ? null : minorToInput(shift.bonus),
     tips: minorToInput(shift.tips),
-    isHoliday: shift.isHoliday,
     color: shift.color ?? job.color,
     label: shift.label ?? "",
     note: shift.note ?? "",

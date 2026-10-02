@@ -11,17 +11,17 @@ import {
   updateShiftTemplate,
 } from "@/data/repositories/shift-templates-repository";
 import type { Job, ShiftTemplate } from "@/domain/entities";
-import { formatMinuteOfDay } from "@/domain/time/time";
+import { formatMinuteOfDay, minuteOfDay } from "@/domain/time/time";
 import { useAppLocalization } from "@/localization/localization-provider";
 import { Text } from "@/shared/ui/app-text";
 import { ColorPicker, SHIFT_COLORS } from "@/shared/ui/form/color-picker";
-import { TimeField } from "@/shared/ui/form/date-time-field";
+import { minuteToReferenceDate } from "@/shared/ui/form/date-time-field";
+import { CardRow, InputCard, PickerCard } from "@/shared/ui/form/cards";
 import { AddRow, FormSection, SegmentedField, TextField } from "@/shared/ui/form/fields";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import { inputToMinor, inputToWholeNumber, minorToInput, required } from "@/shared/ui/form/input-format";
 import { LoadingScreen, QueryGate } from "@/shared/ui/query-gate";
 import { AppAlert } from "@/shared/ui/overlay/app-alert";
-import { i18n } from "@/localization/i18n";
 
 /** Route: /settings/templates */
 export function ShiftTemplatesScreen() {
@@ -29,6 +29,9 @@ export function ShiftTemplatesScreen() {
   const { direction, isRTL } = useAppLocalization();
   const templates = useShiftTemplates();
   const items = templates.data ?? [];
+  if (templates.status === "loading" || templates.error) {
+    return <LoadingScreen title={t("templates.title")} message={templates.error?.message} />;
+  }
   return (
     <FormScreen
       intro={t("templates.intro")}
@@ -111,21 +114,22 @@ function ShiftTemplateForm({ job, existing }: { job: Job; existing?: ShiftTempla
     <FormScreen
       secondaryAction={existing ? { icon: "delete", label: t("templates.delete"), onPress: confirmDelete, tone: "danger" } : undefined}
       title={existing ? t("templates.editTitle") : t("templates.newTitle")}
+      saveLabel={existing ? t("common.saveChanges") : t("templates.add")}
       onSave={save}
     >
-      <FormSection>
-        <ColorPicker value={color} onChange={setColor} />
-        <TextField label={t("templates.name")} placeholder={t("templates.namePlaceholder")} value={name} onChangeText={setName} />
-      </FormSection>
+      <InputCard label={t("templates.name")} placeholder={t("templates.namePlaceholder")} value={name} onChangeText={setName} />
       <FormSection title={t("templates.times")}>
         <SegmentedField options={hoursModes} value={hoursMode} onChange={setHoursMode} />
-        {hoursMode === "fixed" ? (
-          <>
-            <TimeField label={t("templates.start")} minute={startMinute} onChange={setStartMinute} />
-            <TimeField hint={endMinute <= startMinute ? t("templates.endsNextDay") : undefined} label={t("templates.end")} minute={endMinute} onChange={setEndMinute} />
-          </>
-        ) : null}
-        <TextField keyboardType="number-pad" label={t("templates.break")} suffix={t("units.minutesSuffix")} value={breakMinutes} onChangeText={setBreakMinutes} />
+      </FormSection>
+      {hoursMode === "fixed" ? (
+        <CardRow>
+          <PickerCard mode="time" icon="play" label={t("templates.start")} display={formatMinuteOfDay(startMinute)} value={minuteToReferenceDate(startMinute)} onChange={(date) => setStartMinute(minuteOfDay(date))} />
+          <PickerCard mode="time" icon="stop" label={t("templates.end")} display={formatMinuteOfDay(endMinute)} value={minuteToReferenceDate(endMinute)} onChange={(date) => setEndMinute(minuteOfDay(date))} footnote={endMinute <= startMinute ? t("templates.endsNextDay") : undefined} />
+        </CardRow>
+      ) : null}
+      <InputCard keyboardType="number-pad" label={t("templates.break")} trailing={<Text className="text-muted">{t("units.minutesSuffix")}</Text>} value={breakMinutes} onChangeText={setBreakMinutes} />
+      <FormSection title={t("shift.color")}>
+        <ColorPicker value={color} onChange={setColor} />
       </FormSection>
       <FormSection footnote={t("templates.payNote")} title={t("templates.pay")}>
         <TextField keyboardType="decimal-pad" currencyCode={job.currencyCode} label={t("templates.hourlyRate")} placeholder={minorToInput(job.hourlyRate)} value={hourlyRate} onChangeText={setHourlyRate} />
@@ -139,18 +143,20 @@ function ShiftTemplateForm({ job, existing }: { job: Job; existing?: ShiftTempla
 
 /** Route: /settings/templates/new */
 export function NewShiftTemplateScreen() {
+  const { t } = useTranslation();
   const job = useDefaultJob();
-  if (!job.data) return <LoadingScreen message={job.status === "ready" ? i18n.t("common.setUpSalaryFirst") : undefined} title={i18n.t("templates.newTitle")} />;
+  if (!job.data) return <LoadingScreen message={job.error?.message ?? (job.status === "ready" ? t("common.setUpSalaryFirst") : undefined)} title={t("templates.newTitle")} />;
   return <ShiftTemplateForm job={job.data} />;
 }
 
 /** Route: /settings/templates/[id] */
 export function EditShiftTemplateScreen({ id }: { id: string }) {
+  const { t } = useTranslation();
   const template = useShiftTemplate(id);
   const job = useDefaultJob();
   return (
-    <QueryGate query={template} title={i18n.t("templates.editTitle")}>
-      {(loaded) => (job.data ? <ShiftTemplateForm existing={loaded} job={job.data} /> : <LoadingScreen title={i18n.t("templates.editTitle")} />)}
+    <QueryGate query={template} title={t("templates.editTitle")}>
+      {(loaded) => (job.data ? <ShiftTemplateForm existing={loaded} job={job.data} /> : <LoadingScreen title={t("templates.editTitle")} />)}
     </QueryGate>
   );
 }

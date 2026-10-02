@@ -35,7 +35,6 @@ import { CloseFill } from "@material-symbols-svg/react-native/rounded/icons/clos
 import { ViewWeekFill } from "@material-symbols-svg/react-native/rounded/icons/view-week";
 import { SavingsFill } from "@material-symbols-svg/react-native/rounded/icons/savings";
 import { ArrowBackFill } from "@material-symbols-svg/react-native/rounded/icons/arrow-back";
-import { ArrowForwardFill } from "@material-symbols-svg/react-native/rounded/icons/arrow-forward";
 import { SaveFill } from "@material-symbols-svg/react-native/rounded/icons/save";
 import { NotesFill } from "@material-symbols-svg/react-native/rounded/icons/notes";
 import { TimerFill } from "@material-symbols-svg/react-native/rounded/icons/timer";
@@ -100,9 +99,8 @@ const boldIcons = {
   stop: StopFillW600,
 } satisfies Partial<Record<FilledIconName, MaterialSymbolsComponent>>;
 
-/** Directional icons are mirrored in right-to-left layouts (Hebrew). */
+/** Navigation chevrons mirror in Hebrew; the page back arrow always points left. */
 const rtlIcons = {
-  "arrow-left": ArrowForwardFill,
   "chevron-left": ChevronRightFill,
   "chevron-right": ChevronLeftFill,
 } satisfies Partial<Record<FilledIconName, MaterialSymbolsComponent>>;

@@ -14,7 +14,8 @@ import { ISRAEL_DEFAULT_PAY_RULES, normalizePayRules } from "./pay/pay-rules";
 import { computePayslip } from "./pay/payslip";
 import { summarizePeriod } from "./pay/period-summary";
 import { quickSalaryEstimate } from "./pay/quick-calculator";
-import { calculateShiftPay } from "./pay/shift-pay";
+import { DEFAULT_SALARY_AGREEMENT, normalizeSalaryAgreement } from "./pay/salary-agreement";
+import { calculateShiftPay, type ShiftPayInput } from "./pay/shift-pay";
 import { calculateAutoCreditPoints } from "./tax/credit-points";
 import { calculateMandatoryDeductions, calculateProgressiveTax } from "./tax/mandatory-deductions";
 import { ISRAEL_2026_TAX_RULES, normalizeTaxRules } from "./tax/tax-rules";
@@ -477,5 +478,195 @@ describe("holiday windows and shift pay", () => {
     const result = createHolidayWindows({ events: calendar.events, times: [] }, { ...settings, windowMode: "automatic" });
     assert.equal(result.missingTimes, true); assert.deepEqual(result.intervals, []);
     assert.deepEqual(createHolidayWindows(calendar, { ...settings, enabled: false }).intervals, []);
+  });
+});
+
+
+describe("salary agreement supplement", () => {
+  const agreement = { ...DEFAULT_SALARY_AGREEMENT, enabled: true };
+  const input: ShiftPayInput = {
+    startAt: local(2026, 10, 4, 8), endAt: local(2026, 10, 4, 9),
+    breakMinutes: 0, hourlyRate: 3900, payType: "hourly", isHoliday: false,
+    bonus: 0, tips: 0, rules: ISRAEL_DEFAULT_PAY_RULES, salaryAgreement: agreement,
+  };
+  it("keeps weekday base separate and excludes the 9% supplement on Saturday", () => {
+    const weekday = calculateShiftPay(input);
+    assert.equal(weekday.basePay, 3900);
+    assert.equal(weekday.agreementPay, 351);
+    assert.equal(weekday.total, 4251);
+    const saturday = calculateShiftPay({ ...input, startAt: local(2026, 10, 3, 8), endAt: local(2026, 10, 3, 9) });
+    assert.equal(saturday.agreementPay, 0);
+    assert.equal(saturday.total, 5850);
+  });
+  it("supports flat and multiplied rest-day supplements", () => {
+    const saturday = { ...input, startAt: local(2026, 10, 3, 8), endAt: local(2026, 10, 3, 9) };
+    assert.equal(calculateShiftPay({ ...saturday, salaryAgreement: { ...agreement, restDay: "flat" } }).total, 6201);
+    assert.equal(calculateShiftPay({ ...saturday, salaryAgreement: { ...agreement, restDay: "multiplied" } }).total, 6377);
+  });
+  it("applies overtime treatments only to the overtime portion", () => {
+    const overtime = { ...input, endAt: local(2026, 10, 4, 10), rules: { ...ISRAEL_DEFAULT_PAY_RULES, dailyOvertimeThresholdMinutes: 60 } };
+    assert.equal(calculateShiftPay({ ...overtime, salaryAgreement: { ...agreement, overtime: "excluded" } }).agreementPay, 351);
+    assert.equal(calculateShiftPay({ ...overtime, salaryAgreement: { ...agreement, overtime: "flat" } }).agreementPay, 702);
+    assert.equal(calculateShiftPay(overtime).agreementPay, 790);
+  });
+  it("excludes only the holiday portion of a mixed shift and keeps segment totals consistent", () => {
+    const pay = calculateShiftPay({ ...input, endAt: local(2026, 10, 4, 10), holidayIntervals: [{
+      startsAt: local(2026, 10, 4, 9).toISOString(), endsAt: local(2026, 10, 4, 10).toISOString(),
+      rateBp: 15000, holidayIds: ["test"], timeSource: "custom",
+    }] });
+    assert.equal(pay.agreementPay, 351);
+    assert.equal(pay.total, 10101);
+    assert.equal(pay.segments.reduce((sum, part) => sum + part.amount, 0) + pay.agreementPay, pay.total);
+    assert.equal(calculateShiftPay({ ...input, isHoliday: true }).agreementPay, 0);
+  });
+  it("respects exclusions when holiday and overtime overlap", () => {
+    const pay = calculateShiftPay({ ...input, isHoliday: true, rules: { ...input.rules, dailyOvertimeThresholdMinutes: 0 }, salaryAgreement: { ...agreement, holiday: "multiplied", overtime: "excluded" } });
+    assert.equal(pay.agreementPay, 0);
+  });
+  it("does not pay monthly supplements twice through regular shift hours", () => {
+    assert.equal(calculateShiftPay({ ...input, payType: "monthly" }).agreementPay, 0);
+    assert.equal(calculateShiftPay({ ...input, payType: "monthly", isHoliday: true, salaryAgreement: { ...agreement, holiday: "multiplied" } }).agreementPay, 176);
+  });
+  it("adds eligible night premiums and leaves disabled or legacy shifts unchanged", () => {
+    const night = { ...input, startAt: local(2026, 10, 4, 22), endAt: local(2026, 10, 4, 23), rules: { ...input.rules, nightPremiumRateBp: 12500 } };
+    assert.equal(calculateShiftPay({ ...night, salaryAgreement: { ...agreement, nightPremium: true } }).agreementPay, 439);
+    assert.equal(calculateShiftPay({ ...input, salaryAgreement: undefined }).total, 3900);
+    assert.equal(calculateShiftPay({ ...input, salaryAgreement: { ...agreement, enabled: false } }).total, 3900);
+    assert.deepEqual(normalizeSalaryAgreement(undefined), DEFAULT_SALARY_AGREEMENT);
+    assert.equal(normalizeSalaryAgreement({ rateBp: -1, restDay: "invalid" }).rateBp, 900);
+  });
+});
+
+
+describe("night-shift rules switch", () => {
+  it("uses daytime thresholds and disables night premiums, including the agreement premium", () => {
+    for (const payType of ["hourly", "monthly"] as const) {
+      const rules = { ...ISRAEL_DEFAULT_PAY_RULES, nightPremiumRateBp: 12500 };
+      const input: ShiftPayInput = {
+        startAt: local(2026, 10, 4, 22), endAt: local(2026, 10, 5, 6),
+        breakMinutes: 0, hourlyRate: 3900, payType, isHoliday: false, bonus: 0, tips: 0, rules,
+        salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true, nightPremium: true },
+      };
+      const enabled = calculateShiftPay(input);
+      assert.equal(enabled.isNightShift, true);
+      assert.equal(enabled.overtimeMinutes, 60);
+      assert.ok(enabled.nightPremium > 0);
+      const disabled = calculateShiftPay({ ...input, rules: { ...rules, nightShiftsEnabled: false } });
+      assert.equal(disabled.isNightShift, false);
+      assert.equal(disabled.nightMinutes, 0);
+      assert.equal(disabled.overtimeMinutes, 0);
+      assert.equal(disabled.nightPremium, 0);
+      assert.equal(disabled.total, payType === "hourly" ? 34008 : 0);
+      assert.deepEqual(calculateShiftPay(input), enabled, "turning back on restores the configured night rules");
+    }
+  });
+  it("keeps night rules enabled for legacy jobs and normalizes the saved toggle", () => {
+    assert.equal(normalizePayRules({}).nightShiftsEnabled, true);
+    assert.equal(normalizePayRules({ nightShiftsEnabled: false, nightPremiumRateBp: 12500 }).nightShiftsEnabled, false);
+    assert.equal(normalizePayRules({ nightShiftsEnabled: "false" }).nightShiftsEnabled, true);
+  });
+});
+
+
+describe("custom weekly Shabbat hours", () => {
+  const rules = normalizePayRules({ ...ISRAEL_DEFAULT_PAY_RULES, nightShiftsEnabled: false,
+    restWindow: { startDay: 5, startMinute: 1080, endDay: 0, endMinute: 180 } });
+  const base: ShiftPayInput = { startAt: local(2026, 10, 2, 16), endAt: local(2026, 10, 2, 20),
+    hourlyRate: 6000, breakMinutes: 0, payType: "hourly", isHoliday: false, bonus: 0, tips: 0, rules };
+  it("pays only hours from Friday 18:00, even when less than half the shift is inside", () => {
+    const pay = calculateShiftPay({ ...base, startAt: local(2026, 10, 2, 14), endAt: local(2026, 10, 2, 19) });
+    assert.equal(pay.total, 33000);
+    assert.deepEqual(pay.segments.map(s => [s.minutes, s.rateBp, s.restDay]), [[240, 10000, false], [60, 15000, true]]);
+    assert.equal(pay.isRestDay, true);
+  });
+  it("stops at Sunday 03:00 and handles exact boundaries", () => {
+    assert.equal(calculateShiftPay({ ...base, startAt: local(2026, 10, 4, 1), endAt: local(2026, 10, 4, 5) }).total, 30000);
+    assert.equal(calculateShiftPay({ ...base, startAt: local(2026, 10, 2, 16), endAt: local(2026, 10, 2, 18) }).isRestDay, false);
+    assert.equal(calculateShiftPay({ ...base, startAt: local(2026, 10, 4, 3), endAt: local(2026, 10, 4, 5) }).total, 12000);
+    assert.equal(calculateShiftPay({ ...base, startAt: local(2026, 10, 3, 8), endAt: local(2026, 10, 3, 10) }).total, 18000);
+  });
+  it("keeps overtime thresholds continuous across the start and end", () => {
+    const pay = calculateShiftPay({ ...base, startAt: local(2026, 10, 2, 16), endAt: local(2026, 10, 2, 23),
+      rules: { ...rules, dailyOvertimeThresholdMinutes: 180, overtimeTier1Minutes: 120 } });
+    assert.deepEqual(pay.segments.map(s => [s.kind, s.minutes, s.rateBp]), [
+      ["regular", 120, 10000], ["regular", 60, 15000], ["overtimeTier1", 120, 17500], ["overtimeTier2", 120, 20000]]);
+    assert.equal(pay.total, 66000);
+    const endPay = calculateShiftPay({ ...base, startAt: local(2026, 10, 4, 0), endAt: local(2026, 10, 4, 6),
+      rules: { ...rules, dailyOvertimeThresholdMinutes: 120, overtimeTier1Minutes: 120 } });
+    assert.deepEqual(endPay.segments.map(s => [s.minutes, s.rateBp]), [[120, 15000], [60, 17500], [60, 12500], [120, 15000]]);
+  });
+  it("allocates unpaid breaks at the end and gives monthly workers only the extra premium", () => {
+    assert.equal(calculateShiftPay({ ...base, breakMinutes: 60 }).total, 21000);
+    assert.equal(calculateShiftPay({ ...base, breakMinutes: 60, rules: { ...rules, unpaidBreaks: false } }).total, 30000);
+    assert.equal(calculateShiftPay({ ...base, payType: "monthly" }).total, 6000);
+  });
+  it("takes the higher holiday rate without stacking and respects rest exclusions per slice", () => {
+    const pay = calculateShiftPay({ ...base, holidayIntervals: [{ startsAt: base.startAt.toISOString(), endsAt: base.endAt.toISOString(),
+      rateBp: 15000, holidayIds: ["holiday"], timeSource: "custom" }] });
+    assert.equal(pay.total, 36000);
+    assert.equal(pay.holidayPremium, 6000);
+    assert.equal(pay.segments.reduce((sum, s) => sum + s.amount, 0), pay.total);
+    const agreementPay = calculateShiftPay({ ...base, salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true, rateBp: 1000, restDay: "excluded" } });
+    assert.equal(agreementPay.agreementPay, 1200);
+  });
+  it("supports same-day windows, week wrapping, repeated weeks and DST", () => {
+    const sameDay = { ...rules, restWindow: { startDay: 5, startMinute: 1080, endDay: 5, endMinute: 1200 } };
+    assert.equal(calculateShiftPay({ ...base, endAt: local(2026, 10, 2, 22), rules: sameDay }).total, 42000);
+    assert.equal(calculateShiftPay({ ...base, startAt: local(2026, 10, 9, 16), endAt: local(2026, 10, 9, 20) }).total, 30000);
+    const dst = calculateShiftPay({ ...base, startAt: local(2026, 10, 25, 0), endAt: local(2026, 10, 25, 4) });
+    assert.equal(dst.workedMinutes, 300);
+    assert.equal(dst.total, 42000);
+    const fullWeek = { ...rules, overtimeEnabled: false, restWindow: { startDay: 5, startMinute: 1080, endDay: 5, endMinute: 1080 } };
+    const full = calculateShiftPay({ ...base, endAt: local(2026, 10, 16, 20), rules: fullWeek });
+    assert.equal(full.total, full.workedMinutes * 150);
+  });
+  it("normalizes missing and malformed persisted windows safely", () => {
+    assert.equal(normalizePayRules({}).restWindow, null);
+    assert.deepEqual(normalizePayRules({ restWindow: { startDay: 99, startMinute: -1, endDay: 2, endMinute: 60 } }).restWindow,
+      { startDay: 5, startMinute: 1080, endDay: 2, endMinute: 60 });
+  });
+
+  it("shows four hours at base plus 9% and four Shabbat hours at 150% without the agreement", () => {
+    const pay = calculateShiftPay({ ...base, hourlyRate: 4000, startAt: local(2026, 10, 2, 14), endAt: local(2026, 10, 2, 22),
+      salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true, rateBp: 900 } });
+    assert.deepEqual(pay.segments.map(s => [s.minutes, s.hourlyBasePay, s.hourlyAgreementPay, s.hourlyPay, s.agreementAmount, s.total]),
+      [[240, 4000, 360, 4360, 1440, 17440], [240, 6000, 0, 6000, 0, 24000]]);
+    assert.equal(pay.segments[0].startsAt, local(2026, 10, 2, 14).toISOString());
+    assert.equal(pay.segments[0].endsAt, local(2026, 10, 2, 18).toISOString());
+    assert.equal(pay.segments[1].endsAt, local(2026, 10, 2, 22).toISOString());
+    assert.equal(pay.total, 41440);
+  });
+
+  it("includes the agreement on all ordinary hours and follows flat or multiplied Shabbat settings", () => {
+    const agreement = { ...DEFAULT_SALARY_AGREEMENT, enabled: true, rateBp: 900 };
+    const input = { ...base, hourlyRate: 4000, startAt: local(2026, 10, 1, 8), endAt: local(2026, 10, 1, 16), salaryAgreement: agreement };
+    const ordinary = calculateShiftPay(input);
+    assert.equal(ordinary.segments[0].hourlyPay, 4360);
+    assert.equal(ordinary.segments[0].total, 34880);
+    for (const [restDay, expectedHourly] of [["flat", 6360], ["multiplied", 6540]] as const) {
+      const pay = calculateShiftPay({ ...input, startAt: local(2026, 10, 3, 8), endAt: local(2026, 10, 3, 16), salaryAgreement: { ...agreement, restDay } });
+      assert.equal(pay.segments[0].hourlyPay, expectedHourly);
+      assert.equal(pay.segments[0].total, expectedHourly * 8);
+    }
+  });
+
+  it("automatically identifies holiday slices and excludes the agreement only inside the holiday", () => {
+    const pay = calculateShiftPay({ ...base, hourlyRate: 4000, startAt: local(2026, 10, 1, 14), endAt: local(2026, 10, 1, 22),
+      isHoliday: false, salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true, rateBp: 900 },
+      holidayIntervals: [{ startsAt: local(2026, 10, 1, 18).toISOString(), endsAt: local(2026, 10, 1, 22).toISOString(),
+        rateBp: 15000, holidayIds: ["holiday"], timeSource: "custom" }] });
+    assert.deepEqual(pay.segments.map(s => [s.minutes, s.holiday, s.hourlyPay, s.total]), [[240, false, 4360, 17440], [240, true, 6000, 24000]]);
+    assert.equal(pay.total, 41440);
+  });
+
+  it("reconciles segment subtotals, night additions, tips and bonuses at awkward cent rounding", () => {
+    const pay = calculateShiftPay({ ...base, hourlyRate: 4263, bonus: 1200, tips: 500, breakMinutes: 17,
+      startAt: local(2026, 10, 2, 17, 43), endAt: local(2026, 10, 3, 4, 13),
+      rules: { ...rules, nightShiftsEnabled: true, nightPremiumRateBp: 12500 },
+      salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true, rateBp: 900, restDay: "flat", nightPremium: true },
+      holidayIntervals: [{ startsAt: local(2026, 10, 2, 21, 13).toISOString(), endsAt: local(2026, 10, 2, 22, 37).toISOString(),
+        rateBp: 15000, holidayIds: ["holiday"], timeSource: "custom" }] });
+    assert.equal(pay.segments.reduce((total, s) => total + s.total, 0) + pay.totalNightPremium + pay.bonus + pay.tips, pay.total);
+    assert.equal(pay.segments.reduce((total, s) => total + s.agreementAmount, 0) + pay.totalNightPremium - pay.nightPremium, pay.agreementPay);
   });
 });

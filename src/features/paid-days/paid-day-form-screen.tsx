@@ -98,7 +98,6 @@ function PaidDayForm({ job, existing, initialDate }: { job: Job; existing?: Paid
       <CardRow>
         <View className="flex-1">
           <InputCard
-            icon="clock"
             keyboardType="decimal-pad"
             label={t("paidDay.hours")}
             trailing={<Text className="font-sans text-base text-muted">{t("units.hoursSuffix")}</Text>}
@@ -108,7 +107,6 @@ function PaidDayForm({ job, existing, initialDate }: { job: Job; existing?: Paid
         </View>
         <View className="flex-1">
           <InputCard
-            icon="payments"
             keyboardType="decimal-pad"
             label={t("paidDay.percent")}
             trailing={<Text className="font-sans text-base text-muted">%</Text>}
@@ -118,7 +116,7 @@ function PaidDayForm({ job, existing, initialDate }: { job: Job; existing?: Paid
         </View>
       </CardRow>
       {kind === "sick" ? <HelperText>{t("paidDay.sickHint")}</HelperText> : null}
-      <InputCard icon="notes" label={t("paidDay.notes")} multiline placeholder={t("common.optional")} value={note} onChangeText={setNote} />
+      <InputCard label={t("paidDay.notes")} multiline placeholder={t("common.optional")} value={note} onChangeText={setNote} />
     </FormScreen>
   );
 }

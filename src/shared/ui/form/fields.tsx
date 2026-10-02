@@ -1,14 +1,14 @@
 import type { PropsWithChildren, ReactNode } from "react";
-import { Pressable, TextInput, View, type KeyboardTypeOptions } from "react-native";
+import { Pressable, View, type KeyboardTypeOptions } from "react-native";
 import Animated, { Easing, FadeInDown, ReduceMotion } from "react-native-reanimated";
 
-import { useAppThemeColors } from "@/shared/theme/app-theme";
 import { useAppLocalization } from "@/localization/localization-provider";
 
 import { Text } from "../app-text";
 import { AppSwitch } from "../controls/app-switch";
 import { FilledIcon, type FilledIconName } from "../filled-icon";
 import { GlassSegmentedControl } from "../glass-segmented-control";
+import { EditableInput } from "./editable-input";
 import { NumericInput } from "./numeric-input";
 
 /**
@@ -72,49 +72,26 @@ type TextFieldProps = {
   multiline?: boolean;
 };
 
-/** Label + inline text input. Numeric fields align their value to the end. */
+/** Persistent labels and outlined inputs distinguish editable values from read-only rows. */
 export function TextField({ label, value, onChangeText, placeholder, hint, keyboardType, suffix, currencyCode, multiline }: TextFieldProps) {
-  const { muted } = useAppThemeColors();
-  const { direction, isRTL } = useAppLocalization();
-  const numeric = keyboardType === "decimal-pad" || keyboardType === "number-pad";
-
-  if (multiline) {
-    return (
-      <View className="gap-1 border-b-2 border-background px-4 py-3">
-        <Text className="font-manrope-semibold text-base text-foreground">{label}</Text>
-        <TextInput
-          multiline
-          className="min-h-20 font-sans text-base text-foreground"
-          placeholder={placeholder}
-          placeholderTextColor={muted}
-          style={{ direction: "ltr", writingDirection: direction, textAlign: isRTL ? "right" : "left", textAlignVertical: "top" }}
-          value={value}
-          onChangeText={onChangeText}
-        />
-      </View>
-    );
-  }
-
+  const numeric = keyboardType === "decimal-pad" || keyboardType === "number-pad" || Boolean(currencyCode);
   return (
-    <FieldRow hint={hint} label={label}>
-      {numeric || currencyCode ? (
-        <NumericInput currencyCode={currencyCode} keyboardType={keyboardType} label={label} placeholder={placeholder} suffix={suffix} value={value} onChangeText={onChangeText} />
-      ) : (
-        <View className="flex-row items-center gap-1">
-          <TextInput
-            accessibilityLabel={label}
-            className="min-w-16 shrink font-manrope-semibold text-base text-foreground"
-            keyboardType={keyboardType}
-            placeholder={placeholder}
-            placeholderTextColor={muted}
-            style={{ direction: "ltr", writingDirection: keyboardType === "email-address" ? "ltr" : direction, textAlign: isRTL ? "right" : "left" }}
-            value={value}
-            onChangeText={onChangeText}
-          />
-          {suffix ? <Text className="font-sans text-base text-muted">{suffix}</Text> : null}
-        </View>
-      )}
-    </FieldRow>
+    <View className="gap-2 border-b-2 border-background px-4 py-3">
+      <Text className="font-manrope-semibold text-base text-foreground">{label}</Text>
+      {hint ? <Text className="font-sans text-xs leading-4 text-muted">{hint}</Text> : null}
+      {numeric ? <NumericInput currencyCode={currencyCode} keyboardType={keyboardType} label={label} placeholder={placeholder} suffix={suffix} value={value} onChangeText={onChangeText} /> : <EditableInput
+        label={label}
+        className={multiline ? "min-h-24 font-sans" : undefined}
+        keyboardType={keyboardType}
+        autoCapitalize={keyboardType === "email-address" ? "none" : "sentences"}
+        autoCorrect={keyboardType === "email-address" ? false : undefined}
+        multiline={multiline}
+        placeholder={placeholder}
+        trailing={suffix ? <Text className="text-base text-muted">{suffix}</Text> : undefined}
+        value={value}
+        onChangeText={onChangeText}
+      />}
+    </View>
   );
 }
 

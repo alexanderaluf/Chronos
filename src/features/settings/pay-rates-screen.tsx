@@ -6,10 +6,11 @@ import { Pressable, View } from "react-native";
 import { useDefaultJob } from "@/data/hooks/queries";
 import { updateJob } from "@/data/repositories/jobs-repository";
 import type { Job } from "@/domain/entities";
-import { ISRAEL_DEFAULT_PAY_RULES, type PayRules } from "@/domain/pay/pay-rules";
+import { DEFAULT_WEEKLY_REST_WINDOW, ISRAEL_DEFAULT_PAY_RULES, type PayRules } from "@/domain/pay/pay-rules";
 import { Text } from "@/shared/ui/app-text";
 import { TimeField } from "@/shared/ui/form/date-time-field";
-import { FormButton, FormSection, SwitchField, TextField } from "@/shared/ui/form/fields";
+import { FormButton, FormSection, SegmentedField, SwitchField, TextField } from "@/shared/ui/form/fields";
+import { SelectionSection } from "@/shared/ui/form/selection-section";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import {
   basisPointsToInput,
@@ -19,7 +20,6 @@ import {
   required,
 } from "@/shared/ui/form/input-format";
 import { QueryGate } from "@/shared/ui/query-gate";
-import { i18n } from "@/localization/i18n";
 
 type RateFields = {
   dailyHours: string;
@@ -54,6 +54,8 @@ function PayRatesForm({ job }: { job: Job }) {
   const weekdays = t("dates.shortWeekdays", { returnObjects: true });
   const database = useSQLiteContext();
   const [rules, setRules] = useState(job.payRules);
+  const [restWindow, setRestWindow] = useState(job.payRules.restWindow ?? DEFAULT_WEEKLY_REST_WINDOW);
+  const [expandedDay, setExpandedDay] = useState<"startDay" | "endDay" | null>(null);
   const [fields, setFields] = useState(() => toFields(job.payRules));
   const setField = (key: keyof RateFields) => (text: string) => setFields((current) => ({ ...current, [key]: text }));
   const setRule = <K extends keyof PayRules>(key: K, value: PayRules[K]) =>
@@ -65,13 +67,14 @@ function PayRatesForm({ job }: { job: Job }) {
     await updateJob(database, job.id, {
       payRules: {
         ...rules,
+        restWindow: rules.restWindow ? restWindow : null,
         dailyOvertimeThresholdMinutes: hours(fields.dailyHours, t("rates.regularHours")),
-        nightShiftThresholdMinutes: hours(fields.nightHours, t("rates.nightRegularHours")),
-        nightShiftMinNightMinutes: hours(fields.nightMinHours, t("rates.nightMinHours")),
+        nightShiftThresholdMinutes: rules.nightShiftsEnabled ? hours(fields.nightHours, t("rates.nightRegularHours")) : hoursInputToMinutes(fields.nightHours) ?? rules.nightShiftThresholdMinutes,
+        nightShiftMinNightMinutes: rules.nightShiftsEnabled ? hours(fields.nightMinHours, t("rates.nightMinHours")) : hoursInputToMinutes(fields.nightMinHours) ?? rules.nightShiftMinNightMinutes,
         overtimeTier1Minutes: hours(fields.tier1Hours, t("rates.tier1Hours")),
         overtimeTier1RateBp: rate(fields.tier1Rate, t("rates.tier1Rate")),
         overtimeTier2RateBp: rate(fields.tier2Rate, t("rates.tier2Rate")),
-        nightPremiumRateBp: 10_000 + rate(fields.nightPremium, t("rates.nightPremium")),
+        nightPremiumRateBp: rules.nightShiftsEnabled ? 10_000 + rate(fields.nightPremium, t("rates.nightPremium")) : 10_000 + (inputToBasisPoints(fields.nightPremium) ?? rules.nightPremiumRateBp - 10_000),
         restDayRateBp: rate(fields.restRate, t("rates.restRate")),
         restDayOvertimeTier1RateBp: rate(fields.restTier1Rate, t("rates.restTier1")),
         restDayOvertimeTier2RateBp: rate(fields.restTier2Rate, t("rates.restTier2")),
@@ -80,8 +83,9 @@ function PayRatesForm({ job }: { job: Job }) {
   }
 
   function resetToDefaults() {
-    const defaults = { ...ISRAEL_DEFAULT_PAY_RULES, unpaidBreaks: rules.unpaidBreaks };
+    const defaults = { ...rules, ...ISRAEL_DEFAULT_PAY_RULES, unpaidBreaks: rules.unpaidBreaks };
     setRules(defaults);
+    setRestWindow(DEFAULT_WEEKLY_REST_WINDOW);
     setFields(toFields(defaults));
   }
 
@@ -105,6 +109,8 @@ function PayRatesForm({ job }: { job: Job }) {
       </FormSection>
 
       <FormSection title={t("rates.night")}>
+        <SwitchField label={t("rates.calculateNightShifts")} hint={t("rates.calculateNightShiftsHint")} value={rules.nightShiftsEnabled} onValueChange={(value) => setRule("nightShiftsEnabled", value)} />
+        {rules.nightShiftsEnabled ? <>
         <TimeField label={t("rates.nightStarts")} minute={rules.nightWindowStartMinute} onChange={(minute) => setRule("nightWindowStartMinute", minute)} />
         <TimeField label={t("rates.nightEnds")} minute={rules.nightWindowEndMinute} onChange={(minute) => setRule("nightWindowEndMinute", minute)} />
         <TextField
@@ -124,18 +130,47 @@ function PayRatesForm({ job }: { job: Job }) {
           value={fields.nightPremium}
           onChangeText={setField("nightPremium")}
         />
+        </> : null}
       </FormSection>
 
-      <FormSection footnote={t("rates.restDayNote")} title={t("rates.restDay")}>
-        <View className="flex-row justify-between px-4 py-3">
+      <FormSection footnote={t(rules.restWindow ? "rates.restWindowNote" : "rates.restDayNote")} title={t("rates.restDay")}>
+        <SegmentedField
+          label={t("rates.restSchedule")}
+          options={[{ value: "days", label: t("rates.restDaysOnly") }, { value: "custom", label: t("rates.restCustomHours") }]}
+          value={rules.restWindow ? "custom" : "days"}
+          onChange={(value) => setRule("restWindow", value === "custom" ? restWindow : null)}
+        />
+        {rules.restWindow ? <>
+          {(["startDay", "endDay"] as const).map((key) => (
+            <View key={key} className="px-4">
+              <SelectionSection
+                title={t(key === "startDay" ? "rates.restStartDay" : "rates.restEndDay")}
+                placeholder={t("rates.restSelectDay")}
+                icon="calendar"
+                options={weekdays.map((name, day) => ({ id: String(day), name }))}
+                selectedId={String(restWindow[key])}
+                expanded={expandedDay === key}
+                onToggle={() => setExpandedDay(expandedDay === key ? null : key)}
+                onSelect={(id) => {
+                  if (id === "") return;
+                  setRestWindow((current) => ({ ...current, [key]: Number(id) }));
+                  setExpandedDay(null);
+                }}
+              />
+            </View>
+          ))}
+          <TimeField label={t("rates.restStartTime")} minute={restWindow.startMinute} onChange={(startMinute) => setRestWindow((current) => ({ ...current, startMinute }))} />
+          <TimeField label={t("rates.restEndTime")} minute={restWindow.endMinute} onChange={(endMinute) => setRestWindow((current) => ({ ...current, endMinute }))} />
+        </> : <View className="flex-row flex-wrap justify-between gap-1 px-4 py-3">
           {[0, 1, 2, 3, 4, 5, 6].map((day) => {
             const selected = rules.restDays.includes(day);
             return (
               <Pressable
                 key={day}
                 accessibilityRole="button"
+                accessibilityLabel={weekdays[day]}
                 accessibilityState={{ selected }}
-                className={`size-10 items-center justify-center rounded-full ${selected ? "bg-accent" : "bg-surface-secondary"}`}
+                className={`size-11 items-center justify-center rounded-full ${selected ? "bg-accent" : "bg-surface-secondary"}`}
                 onPress={() =>
                   setRule("restDays", selected ? rules.restDays.filter((value) => value !== day) : [...rules.restDays, day].sort())
                 }
@@ -144,7 +179,7 @@ function PayRatesForm({ job }: { job: Job }) {
               </Pressable>
             );
           })}
-        </View>
+        </View>}
         <TextField keyboardType="decimal-pad" label={t("rates.restRate")} suffix="%" value={fields.restRate} onChangeText={setField("restRate")} />
         <TextField keyboardType="decimal-pad" label={t("rates.restTier1")} suffix="%" value={fields.restTier1Rate} onChangeText={setField("restTier1Rate")} />
         <TextField keyboardType="decimal-pad" label={t("rates.restTier2")} suffix="%" value={fields.restTier2Rate} onChangeText={setField("restTier2Rate")} />
@@ -155,6 +190,7 @@ function PayRatesForm({ job }: { job: Job }) {
 
 /** Route: /settings/rates */
 export function PayRatesScreen() {
+  const { t } = useTranslation();
   const job = useDefaultJob();
-  return <QueryGate query={job} title={i18n.t("rates.title")}>{(data) => <PayRatesForm job={data} />}</QueryGate>;
+  return <QueryGate query={job} title={t("rates.title")}>{(data) => <PayRatesForm job={data} />}</QueryGate>;
 }

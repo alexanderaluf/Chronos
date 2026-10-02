@@ -48,5 +48,11 @@ for (const [name, locale] of [
     it("has no empty strings", () => {
       for (const [key, text] of translated) assert.ok(text.trim().length > 0, `${name}: ${key} is empty`);
     });
+
+    it("has no encoding replacement characters or runs of question marks", () => {
+      for (const [key, text] of translated) {
+        assert.ok(!/\uFFFD|\?{2,}/u.test(text), `${name}: ${key} contains corrupted text`);
+      }
+    });
   });
 }

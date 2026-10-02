@@ -1,3 +1,4 @@
+import { normalizeSalaryAgreement, type SalaryAgreement } from "./salary-agreement";
 import type { BasisPoints } from "../money/money";
 
 /**
@@ -10,6 +11,11 @@ import type { BasisPoints } from "../money/money";
  * (Hours of Work and Rest Law). They are estimates, not legal advice.
  */
 export type PayRules = {
+  /** Optional exact weekly rest window; null keeps the selected-weekdays behavior. */
+  restWindow?: WeeklyRestWindow | null;
+  salaryAgreement?: SalaryAgreement;
+  /** When false, use daytime overtime thresholds and pay no night premium. */
+  nightShiftsEnabled: boolean;
   /** When false, every worked minute is paid at the regular (or rest-day) rate. */
   overtimeEnabled: boolean;
   /** When true, the shift break is subtracted from paid time. */
@@ -39,6 +45,8 @@ export type PayRules = {
 };
 
 export const ISRAEL_DEFAULT_PAY_RULES: PayRules = {
+  restWindow: null,
+  nightShiftsEnabled: true,
   overtimeEnabled: true,
   unpaidBreaks: true,
   nightPremiumRateBp: 10_000,
@@ -71,6 +79,9 @@ export function normalizePayRules(input: unknown): PayRules {
     : d.restDays;
 
   return {
+    restWindow: normalizeWeeklyRestWindow(raw.restWindow),
+    salaryAgreement: normalizeSalaryAgreement(raw.salaryAgreement),
+    nightShiftsEnabled: typeof raw.nightShiftsEnabled === "boolean" ? raw.nightShiftsEnabled : d.nightShiftsEnabled,
     overtimeEnabled: typeof raw.overtimeEnabled === "boolean" ? raw.overtimeEnabled : d.overtimeEnabled,
     unpaidBreaks: typeof raw.unpaidBreaks === "boolean" ? raw.unpaidBreaks : d.unpaidBreaks,
     nightPremiumRateBp: wholeNumber(raw.nightPremiumRateBp, d.nightPremiumRateBp, 10_000),
@@ -86,5 +97,23 @@ export function normalizePayRules(input: unknown): PayRules {
     restDayRateBp: wholeNumber(raw.restDayRateBp, d.restDayRateBp),
     restDayOvertimeTier1RateBp: wholeNumber(raw.restDayOvertimeTier1RateBp, d.restDayOvertimeTier1RateBp),
     restDayOvertimeTier2RateBp: wholeNumber(raw.restDayOvertimeTier2RateBp, d.restDayOvertimeTier2RateBp),
+  };
+}
+
+export type WeeklyRestWindow = { startDay: number; startMinute: number; endDay: number; endMinute: number };
+
+export const DEFAULT_WEEKLY_REST_WINDOW: WeeklyRestWindow = {
+  startDay: 5, startMinute: 18 * 60, endDay: 0, endMinute: 3 * 60,
+};
+
+function normalizeWeeklyRestWindow(input: unknown): WeeklyRestWindow | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+  const d = DEFAULT_WEEKLY_REST_WINDOW;
+  return {
+    startDay: wholeNumber(raw.startDay, d.startDay, 0, 6),
+    startMinute: wholeNumber(raw.startMinute, d.startMinute, 0, 1439),
+    endDay: wholeNumber(raw.endDay, d.endDay, 0, 6),
+    endMinute: wholeNumber(raw.endMinute, d.endMinute, 0, 1439),
   };
 }

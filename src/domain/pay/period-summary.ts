@@ -1,3 +1,4 @@
+import { agreementSupplement, normalizeSalaryAgreement } from "./salary-agreement";
 import type { Job, PaidDay, PayAdjustment, PayComponent, Shift } from "../entities";
 import { divideRounded, payForMinutes, type MinorUnits } from "../money/money";
 import type { CreditPointResult } from "../tax/credit-points";
@@ -64,6 +65,7 @@ export function calculatePayForShift(shift: Shift, job: Job, holidayIntervals: r
   if (!shift.endAt || shift.deletedAt) return null;
   return calculateShiftPay({
     holidayIntervals,
+    salaryAgreement: shift.salaryAgreement,
     startAt: fromIso(shift.startAt),
     endAt: fromIso(shift.endAt),
     breakMinutes: shift.breakMinutes,
@@ -126,6 +128,7 @@ export function summarizePeriod(input: PeriodSummaryInput): PeriodSummary {
   const baseEarnings: PayslipLine[] = [
     { key: "basePay", label: "Base pay", amount: sum((item) => item.pay.basePay) },
     ...monthlySalaries.map((job) => ({ key: `salary:${job.id}`, label: job.name, amount: job.monthlySalary })),
+    { key: "agreementPay", label: "", amount: sum((item) => item.pay.agreementPay) + monthlySalaries.reduce((total, job) => total + agreementSupplement(job.monthlySalary, normalizeSalaryAgreement(job.payRules.salaryAgreement)), 0) },
     { key: "overtime", label: "Overtime", amount: sum((item) => item.pay.overtimePay) },
     { key: "nightPremium", label: "Night premium", amount: sum((item) => item.pay.nightPremium) },
     { key: "holidayPremium", label: "", amount: sum((item) => item.pay.holidayPremium) },

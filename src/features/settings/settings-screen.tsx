@@ -39,7 +39,7 @@ export function SettingsScreen() {
         { icon: "trending-up", color: "#ffc975", label: t("settingsMenu.additions"), href: "/settings/additions", value: count(additions.data) },
         { icon: "trending-down", color: "#ff9c87", label: t("settingsMenu.deductions"), href: "/settings/deductions", value: count(deductions.data) },
         { icon: "receipt", color: "#79bced", label: t("settingsMenu.taxes"), href: "/settings/taxes" },
-        { icon: "repeat", color: "#77c8bd", label: t("settingsMenu.templates"), href: "/settings/templates", value: count(templates.data) },
+        { icon: "repeat", color: "#77c8bd", label: t("settingsMenu.templates"), href: "/settings/templates", value: count(templates.data), hint: t("templates.selectionHint") },
         { icon: "work", color: "#ca79da", label: t("settingsMenu.employer"), href: "/settings/employer", value: settings.data?.employer.name || undefined },
       ],
     },

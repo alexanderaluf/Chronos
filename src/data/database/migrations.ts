@@ -319,6 +319,13 @@ export const MIGRATIONS: Migration[] = [
       );`);
     },
   },
+  {
+    version: 5,
+    name: "salary supplement snapshots",
+    async up(tx) {
+      await tx.execAsync("ALTER TABLE shifts ADD COLUMN salary_agreement_json TEXT NOT NULL DEFAULT '{}';");
+    },
+  },
 ];
 
 export const LATEST_DATABASE_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

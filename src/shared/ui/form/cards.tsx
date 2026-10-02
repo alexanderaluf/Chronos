@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { Keyboard, Pressable, TextInput, View, type KeyboardTypeOptions } from "react-native";
+import { Keyboard, Pressable, View, type KeyboardTypeOptions } from "react-native";
 import { useTranslation } from "react-i18next";
 
-import { useAppThemeColors } from "@/shared/theme/app-theme";
 import { useAppLocalization } from "@/localization/localization-provider";
 
+import { EditableInput } from "./editable-input";
 import { Text } from "../app-text";
 import { AppSwitch } from "../controls/app-switch";
 import { DateTimePickerOverlay } from "../controls/date-time-picker-overlay";
@@ -21,7 +21,7 @@ function CardLabel({ icon, label }: { icon?: FilledIconName; label: string }) {
   return (
     <View className="flex-row items-center gap-2">
       {icon ? <FilledIcon name={icon} size={17} tone="muted" /> : null}
-      <Text className="font-manrope-medium text-xs text-muted" numberOfLines={1}>
+      <Text className="flex-1 font-manrope-medium text-xs text-muted">
         {label}
       </Text>
     </View>
@@ -36,7 +36,7 @@ export function InputCard({
   placeholder,
   keyboardType,
   trailing,
-  icon,
+  action,
   multiline,
 }: {
   label: string;
@@ -46,26 +46,29 @@ export function InputCard({
   keyboardType?: KeyboardTypeOptions;
   /** e.g. a currency code or "Custom" button on the end side. */
   trailing?: ReactNode;
-  icon?: FilledIconName;
+  action?: ReactNode;
   multiline?: boolean;
 }) {
-  const { muted } = useAppThemeColors();
   return (
     <View className={`justify-center gap-1 rounded-2xl bg-surface px-4 ${multiline ? "py-3" : "min-h-20 py-2"}`}>
-      <CardLabel icon={icon} label={label} />
-      <View className="flex-row items-center gap-2">
-        <TextInput
-          accessibilityLabel={label}
-          className={`min-w-0 flex-1 font-manrope-semibold text-foreground ${multiline ? "min-h-16 text-base" : "text-lg"}`}
+      <View className="flex-row flex-wrap items-center justify-between gap-2">
+        <View className="min-w-0 flex-1"><CardLabel label={label} /></View>
+        {action}
+      </View>
+      <View className="gap-2">
+        <EditableInput
+          label={label}
+          numeric={keyboardType === "decimal-pad" || keyboardType === "number-pad"}
+          containerClassName="w-full"
+          className={multiline ? "min-h-24 font-sans" : "text-lg"}
           keyboardType={keyboardType}
           multiline={multiline}
           placeholder={placeholder}
-          placeholderTextColor={muted}
+          trailing={trailing}
           style={{ textAlignVertical: multiline ? "top" : "center" }}
           value={value}
           onChangeText={onChangeText}
         />
-        {trailing}
       </View>
     </View>
   );

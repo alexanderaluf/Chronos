@@ -16,13 +16,14 @@ import { israelWallTime } from "../domain/holidays/zoned-time";
 import type { HolidayCalendar } from "../domain/holidays/premium-intervals";
 import { loadPeriodReport, loadYearReport } from "./reports/period-report";
 import { createAdjustment } from "./repositories/adjustments-repository";
+import { DEFAULT_SALARY_AGREEMENT } from "../domain/pay/salary-agreement";
 import { listJobs, updateJob } from "./repositories/jobs-repository";
 import { createPaidDay } from "./repositories/paid-days-repository";
 import { createPayComponent, listPayComponents } from "./repositories/pay-components-repository";
 import { clearPlannedShift, getNextPlannedShift, savePlannedShift } from "./repositories/planned-shifts-repository";
 import { getSettings, updateSettings } from "./repositories/settings-repository";
 import { createShiftTemplate, listShiftTemplates } from "./repositories/shift-templates-repository";
-import { clockIn, clockOut, createShift, deleteShift, getOpenShift, restoreShift } from "./repositories/shifts-repository";
+import { clockIn, clockOut, createShift, deleteShift, getOpenShift, restoreShift, updateShift } from "./repositories/shifts-repository";
 import { getActiveTaxProfile } from "./repositories/tax-profiles-repository";
 import { createTestDatabase, migrateTestDatabase } from "./testing/node-sqlite-database";
 
@@ -299,5 +300,71 @@ describe("Hebcal and holiday cache", () => {
     assert.deepEqual(after.shifts[0].shift, shift);
     await updateSettings(db, { holidayPay: { ...settings, enabled: false } });
     assert.equal((await loadPeriodReport(db, "2027-06")).shifts[0].pay.total, 40000);
+  });
+});
+
+
+describe("salary agreement storage", () => {
+  it("snapshots supplements for new shifts and keeps past settings when the job changes", async () => {
+    const db = await createTestDatabase();
+    const [job] = await listJobs(db);
+    await updateJob(db, job.id, { hourlyRate: 3900, payRules: { ...job.payRules, salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true } } });
+    const first = await createShift(db, { jobId: job.id, startAt: local(2026, 10, 4, 8), endAt: local(2026, 10, 4, 9), timeZone: "Asia/Jerusalem" });
+    await updateJob(db, job.id, { payRules: { ...job.payRules, salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true, rateBp: 1000 } } });
+    await createShift(db, { jobId: job.id, startAt: local(2026, 10, 5, 8), endAt: local(2026, 10, 5, 9), timeZone: "Asia/Jerusalem" });
+    await updateShift(db, first.id, { note: "Edited after agreement change" });
+    const report = await loadPeriodReport(db, "2026-10");
+    assert.deepEqual(report.shifts.map((item) => item.pay.total), [4251, 4290]);
+    assert.equal(report.payslip.earnings.find((line) => line.key === "agreementPay")?.amount, 741);
+  });
+  it("migrates old shifts without retroactively adding supplements", async () => {
+    const db = await createTestDatabase(4);
+    const [job] = await listJobs(db);
+    await db.runAsync("INSERT INTO shifts (id, job_id, start_at, end_at, time_zone, hourly_rate_minor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", "legacy", job.id, local(2026, 10, 4, 8).toISOString(), local(2026, 10, 4, 9).toISOString(), "Asia/Jerusalem", 3900, "2026-10-04", "2026-10-04");
+    await migrateTestDatabase(db, 4, 5);
+    await updateJob(db, job.id, { payRules: { ...job.payRules, salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true } } });
+    assert.equal((await loadPeriodReport(db, "2026-10")).shifts[0].pay.total, 3900);
+  });
+  it("adds a monthly supplement once even without recorded shifts", async () => {
+    const db = await createTestDatabase();
+    const [job] = await listJobs(db);
+    await updateJob(db, job.id, { payType: "monthly", monthlySalary: 1000000, payRules: { ...job.payRules, salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true } } });
+    const report = await loadPeriodReport(db, "2026-10");
+    assert.equal(report.payslip.earnings.find((line) => line.key === "agreementPay")?.amount, 90000);
+    assert.equal(report.payslip.gross, 1090000);
+  });
+});
+
+
+describe("night-shift toggle persistence", () => {
+  it("keeps the disabled state and configured night values when saving a job", async () => {
+    const db = await createTestDatabase();
+    const [job] = await listJobs(db);
+    await updateJob(db, job.id, { payRules: { ...job.payRules, nightShiftsEnabled: false, nightPremiumRateBp: 12500, nightShiftThresholdMinutes: 390 } });
+    const [saved] = await listJobs(db);
+    assert.equal(saved.payRules.nightShiftsEnabled, false);
+    assert.equal(saved.payRules.nightPremiumRateBp, 12500);
+    assert.equal(saved.payRules.nightShiftThresholdMinutes, 390);
+    await updateJob(db, job.id, { payRules: { ...saved.payRules, nightShiftsEnabled: true } });
+    assert.equal((await listJobs(db))[0].payRules.nightPremiumRateBp, 12500);
+  });
+});
+
+
+describe("weekly Shabbat settings", () => {
+  it("persists the window and uses it in reports without changing shift snapshots", async () => {
+    const db = await createTestDatabase();
+    const [job] = await listJobs(db);
+    const window = { startDay: 5, startMinute: 1080, endDay: 0, endMinute: 180 };
+    const updated = await updateJob(db, job.id, { hourlyRate: 6000, payRules: { ...job.payRules, restWindow: window } });
+    assert.deepEqual(updated.payRules.restWindow, window);
+    assert.deepEqual((await listJobs(db))[0].payRules.restWindow, window);
+    const shift = await createShift(db, { jobId: job.id, startAt: local(2026, 10, 2, 16), endAt: local(2026, 10, 2, 20), timeZone: "Asia/Jerusalem" });
+    const report = await loadPeriodReport(db, "2026-10");
+    assert.equal(report.shifts.find(item => item.shift.id === shift.id)?.pay.total, 30000);
+    await updateJob(db, job.id, { payRules: { ...updated.payRules, restWindow: null } });
+    const reverted = await loadPeriodReport(db, "2026-10");
+    assert.equal(reverted.shifts.find(item => item.shift.id === shift.id)?.pay.total, 24000);
+    assert.equal(reverted.shifts.find(item => item.shift.id === shift.id)?.shift.hourlyRate, 6000);
   });
 });
