@@ -4,12 +4,12 @@
     "slug": "chronos",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/android-icons/adaptive-icon.png",
     "scheme": "chronos",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.chronos.shifttracker",
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/chronos.icon",
       "infoPlist": {
         "ExpoLocalization_supportsRTL": true,
         "CFBundleLocalizations": [
@@ -21,18 +21,17 @@
     },
     "android": {
       "package": "com.chronos.shifttracker",
+      "icon": "./assets/android-icons/adaptive-icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#DCE7E0",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icons/adaptive-icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "backgroundColor": "#DCE7E0"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/android-icons/adaptive-icon.png"
     },
     "plugins": [
       "expo-router",
@@ -40,8 +39,12 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#DCE7E0",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "image": "./assets/android-icons/splash-icon-light.png",
+          "imageWidth": 76,
+          "dark": {
+            "image": "./assets/android-icons/splash-icon-dark.png",
+            "backgroundColor": "#000000"
+          }
         }
       ],
       "expo-sqlite",
