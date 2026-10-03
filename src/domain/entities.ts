@@ -38,6 +38,10 @@ export type Job = {
 export type Shift = {
   /** Supplement rules copied on creation; absent on legacy records means disabled. */
   salaryAgreement?: import("./pay/salary-agreement").SalaryAgreement;
+  /** "Unpaid breaks" copied from the job on creation; absent means the job's current rule. */
+  unpaidBreaks?: boolean;
+  /** Holiday pay settings copied on creation; absent means the current global settings. */
+  holidayPay?: import("./holidays/holiday-settings").HolidayPaySettings;
   id: string;
   jobId: string;
   startAt: string;

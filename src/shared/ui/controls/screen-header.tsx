@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { Button } from "heroui-native";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { View } from "react-native";
+import { Keyboard, View } from "react-native";
 import { useAppLocalization } from "@/localization/localization-provider";
 
 import { Text } from "../app-text";
@@ -34,7 +34,12 @@ export function ScreenHeader({
         isDisabled={disabled}
         isIconOnly
         variant="ghost"
-        onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace("/")))}
+        onPress={() => {
+          Keyboard.dismiss();
+          if (onBack) onBack();
+          else if (router.canGoBack()) router.back();
+          else router.replace("/");
+        }}
       >
         <FilledIcon name="arrow-left" size={24} />
       </Button>

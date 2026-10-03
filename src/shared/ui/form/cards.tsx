@@ -170,7 +170,10 @@ export function CardAction({ label, onPress }: { label: string; onPress: () => v
       className="rounded-full bg-accent/12 px-3 py-1.5"
       hitSlop={6}
       style={({ pressed }) => ({ opacity: pressed ? 0.68 : 1 })}
-      onPress={onPress}
+      onPress={() => {
+        Keyboard.dismiss();
+        onPress();
+      }}
     >
       <Text className="font-manrope-semibold text-xs text-accent">{label}</Text>
     </Pressable>

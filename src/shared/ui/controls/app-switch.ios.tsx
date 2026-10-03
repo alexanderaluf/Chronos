@@ -1,4 +1,5 @@
 import { Host, Switch } from "@expo/ui";
+import { Keyboard } from "react-native";
 import { useAppLocalization } from "@/localization/localization-provider";
 
 import { useAppThemeColors } from "@/shared/theme/app-theme";
@@ -11,7 +12,14 @@ export function AppSwitch({ value, onValueChange, disabled }: AppSwitchProps) {
   const { isRTL } = useAppLocalization();
   return (
     <Host matchContents seedColor={accent} layoutDirection={isRTL ? "rightToLeft" : "leftToRight"}>
-      <Switch disabled={disabled} value={value} onValueChange={onValueChange} />
+      <Switch
+        disabled={disabled}
+        value={value}
+        onValueChange={(next) => {
+          Keyboard.dismiss();
+          onValueChange(next);
+        }}
+      />
     </Host>
   );
 }

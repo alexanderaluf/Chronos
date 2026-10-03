@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import type { RefObject } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { Keyboard, Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { colorWithAlpha, useAppThemeColors } from "@/shared/theme/app-theme";
 import { useAppLocalization } from "@/localization/localization-provider";
@@ -64,7 +64,10 @@ export function GlassSegmentedControl<Value extends string>({
               accessibilityState={{ selected }}
               style={({ pressed }) => [styles.tab, { minHeight }, pressed && styles.pressed]}
               onLayout={(event) => onItemLayout(option.value, event)}
-              onPress={() => onChange(option.value)}
+              onPress={() => {
+                Keyboard.dismiss();
+                onChange(option.value);
+              }}
             >
               <Text
                 adjustsFontSizeToFit

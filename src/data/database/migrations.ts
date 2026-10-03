@@ -326,6 +326,27 @@ export const MIGRATIONS: Migration[] = [
       await tx.execAsync("ALTER TABLE shifts ADD COLUMN salary_agreement_json TEXT NOT NULL DEFAULT '{}';");
     },
   },
+  {
+    version: 6,
+    name: "unpaid-break and holiday pay snapshots",
+    async up(tx) {
+      // Each shift keeps its own copy, so a settings change only reaches the shifts the user chooses.
+      await tx.execAsync(`
+        ALTER TABLE shifts ADD COLUMN unpaid_breaks INTEGER NOT NULL DEFAULT 1 CHECK (unpaid_breaks IN (0, 1));
+        ALTER TABLE shifts ADD COLUMN holiday_pay_json TEXT NOT NULL DEFAULT '{}';
+      `);
+      // Existing shifts keep exactly what they were calculated with before this version.
+      const jobs = await tx.getAllAsync<{ id: string; pay_rules_json: string }>("SELECT id, pay_rules_json FROM jobs");
+      for (const job of jobs) {
+        const rules = parseJson(job.pay_rules_json) as { unpaidBreaks?: unknown } | undefined;
+        await tx.runAsync("UPDATE shifts SET unpaid_breaks = ? WHERE job_id = ?", rules?.unpaidBreaks === false ? 0 : 1, job.id);
+      }
+      const holidayPay = await tx.getFirstAsync<{ value_json: string }>("SELECT value_json FROM settings WHERE key = 'holidayPay'");
+      // Inline copy of the v5 default (migrations never read constants that change later).
+      const v5Default = '{"enabled":true,"rateBp":15000,"windowMode":"automatic","customStartMinute":1080,"customEndMinute":1080,"timezone":"Asia/Jerusalem","workCity":null}';
+      await tx.runAsync("UPDATE shifts SET holiday_pay_json = ?", holidayPay?.value_json ?? v5Default);
+    },
+  },
 ];
 
 export const LATEST_DATABASE_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -1,3 +1,5 @@
+import { formatNumericDate } from "@/domain/time/time";
+
 import { i18n } from "./i18n";
 import type { AppLanguage } from "./languages";
 
@@ -13,7 +15,6 @@ export function localizedDayLabel(date: Date, language: AppLanguage): string {
   const t = i18n.getFixedT(language);
   return t("dates.dayLabel", {
     weekday: t("dates.shortWeekdays", { returnObjects: true })[date.getDay()],
-    day: date.getDate(),
-    month: localizedMonthLabel(date, language, true),
+    date: formatNumericDate(date),
   });
 }

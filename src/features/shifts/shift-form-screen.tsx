@@ -22,12 +22,12 @@ import {
   startOfLocalDay,
   type LocalDateKey,
 } from "@/domain/time/time";
-import { formatHours, formatMoney, getDeviceTimeZone } from "@/shared/lib/format";
+import { formatDate, formatHours, formatMoney, getDeviceTimeZone } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 import { FilledIcon } from "@/shared/ui/filled-icon";
 import { CardAction, CardRow, InputCard, PickerCard, ToggleCard } from "@/shared/ui/form/cards";
 import { ColorPicker } from "@/shared/ui/form/color-picker";
-import { formatPickerDate, minuteToReferenceDate } from "@/shared/ui/form/date-time-field";
+import { minuteToReferenceDate } from "@/shared/ui/form/date-time-field";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import { inputToMinor, inputToWholeNumber, minorToInput, required } from "@/shared/ui/form/input-format";
 import { SelectionSection } from "@/shared/ui/form/selection-section";
@@ -129,7 +129,9 @@ function ShiftForm({
   const isHourly = job.payType === "hourly";
   const agreement = normalizeSalaryAgreement(existing ? existing.salaryAgreement : job.payRules.salaryAgreement);
   const previewRange = shiftRangeFromClockTimes(values.day, roundMinute(values.startMinute, settings.roundingMinutes), roundMinute(values.endMinute, settings.roundingMinutes));
-  const holidays = useHolidayPremiums(previewRange.start.toISOString(), previewRange.end.toISOString(), settings.holidayPay);
+  // A saved shift keeps the holiday settings it was recorded with; a new one uses the current ones.
+  const holidayPay = existing?.holidayPay ?? settings.holidayPay;
+  const holidays = useHolidayPremiums(previewRange.start.toISOString(), previewRange.end.toISOString(), holidayPay);
 
   function buildInput() {
     const step = settings.roundingMinutes;
@@ -161,6 +163,8 @@ function ShiftForm({
         {
           id: "draft",
           salaryAgreement: existing ? existing.salaryAgreement : job.payRules.salaryAgreement,
+          unpaidBreaks: existing ? existing.unpaidBreaks : job.payRules.unpaidBreaks,
+          holidayPay,
           jobId: input.jobId,
           startAt: input.startAt.toISOString(),
           endAt: input.endAt.toISOString(),
@@ -187,7 +191,7 @@ function ShiftForm({
 
   async function save() {
     const input = buildInput();
-    const holidayLookup = await ensureHolidayDataForRange(database, input.startAt, input.endAt ?? previewRange.end, settings.holidayPay);
+    const holidayLookup = await ensureHolidayDataForRange(database, input.startAt, input.endAt ?? previewRange.end, holidayPay);
     if (existing) {
       await updateShift(database, existing.id, input);
       return;
@@ -252,8 +256,8 @@ function ShiftForm({
     color: template.color,
     detail:
       template.startMinute !== null && template.endMinute !== null
-        ? `${formatMinuteOfDay(template.startMinute)}–${formatMinuteOfDay(template.endMinute)}`
-        : undefined,
+        ? `${formatMinuteOfDay(template.startMinute)} – ${formatMinuteOfDay(template.endMinute)}`
+        : t("templates.variableHours"),
   }));
 
   return (
@@ -268,6 +272,7 @@ function ShiftForm({
           addLabel={t("shift.newFixedShift")}
           expanded={templatesOpen}
           icon="repeat"
+          layout="grid"
           optional
           options={templateOptions}
           placeholder={t("shift.fixedShiftPlaceholder")}
@@ -287,7 +292,7 @@ function ShiftForm({
       />
 
       <PickerCard
-        display={formatPickerDate(values.day)}
+        display={formatDate(values.day)}
         label={t("shift.date")}
         mode="date"
         value={values.day}
@@ -387,7 +392,7 @@ function ShiftForm({
       <Text className="px-1 text-xs leading-5 text-muted">{t("shift.automaticRatesHint")}</Text>
       {existing?.isHoliday ? <Text className="px-1 text-xs leading-5 text-muted">{t("shift.legacyHolidayOverride")}</Text> : null}
       <HolidayPayNotice status={holidays.data?.status ?? (holidays.error ? "unavailable" : undefined)} />
-      {!values.isRunning && settings.holidayPay.enabled && !holidays.data && !holidays.error ? <Text className="px-1 text-xs text-muted">{t("holidayPay.loading")}</Text> : null}
+      {!values.isRunning && holidayPay.enabled && !holidays.data && !holidays.error ? <Text className="px-1 text-xs text-muted">{t("holidayPay.loading")}</Text> : null}
 
       <View className="gap-3">
         <Text className="px-1 font-manrope-bold text-lg text-foreground">{t("shift.color")}</Text>

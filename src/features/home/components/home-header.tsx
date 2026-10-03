@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
 import { useNow } from "@/features/shifts/hooks/use-now";
-import { getAppLocale } from "@/shared/lib/format";
+import { formatDayLabel } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 
 function greetingKey(hour: number) {
@@ -20,7 +20,7 @@ export function HomeHeader() {
   return (
     <View className="pt-3">
       <Text className="font-manrope-medium text-xs uppercase tracking-widest text-muted">
-        {now.toLocaleDateString(getAppLocale(), { weekday: "long", day: "numeric", month: "long" })}
+        {formatDayLabel(now)}
       </Text>
       <Text accessibilityRole="header" className="mt-1 font-manrope-bold text-2xl text-foreground">
         {t(`home.greetings.${greetingKey(now.getHours())}`)}

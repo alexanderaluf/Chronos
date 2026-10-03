@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Pressable, View } from "react-native";
+import { Pressable } from "react-native";
 
 import { useJobs } from "@/data/hooks/queries";
 import type { Shift } from "@/domain/entities";
@@ -11,31 +11,11 @@ import { Text } from "@/shared/ui/app-text";
 import { FilledIcon } from "@/shared/ui/filled-icon";
 import { Panel } from "@/shared/ui/section";
 
-/** Clock in / out: a live timer while on shift, a start button otherwise. */
-export function ActiveShiftCard({ openShift, onToggle }: { openShift: Shift | null; onToggle: () => void }) {
+/** The running shift: a live timer and a clock-out button. */
+export function ActiveShiftCard({ openShift, onToggle }: { openShift: Shift; onToggle: () => void }) {
   const { t } = useTranslation();
-  const now = useNow(1_000, openShift !== null);
+  const now = useNow(1_000);
   const jobs = useJobs();
-
-  if (!openShift) {
-    return (
-      <Panel className="flex-row items-center gap-4">
-        <View className="flex-1">
-          <Text className="font-manrope-semibold text-lg">{t("home.notOnShift")}</Text>
-          <Text className="text-sm text-muted">{t("home.startHint")}</Text>
-        </View>
-        <Pressable
-          accessibilityLabel={t("home.clockIn")}
-          accessibilityRole="button"
-          className="size-14 items-center justify-center rounded-full bg-accent active:opacity-80"
-          onPress={onToggle}
-        >
-          <FilledIcon name="play" size={30} tone="accent-foreground" weight={600} />
-        </Pressable>
-      </Panel>
-    );
-  }
-
   const start = fromIso(openShift.startAt);
   const job = jobs.data?.find((item) => item.id === openShift.jobId);
   const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - start.getTime()) / 1000));

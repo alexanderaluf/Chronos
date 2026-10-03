@@ -196,6 +196,16 @@ export function ageOn(birthDate: Date, on: Date): number {
   return age;
 }
 
+/** The app's date format, in local time: "02/10/2026" (dd/mm/yyyy). */
+export function formatNumericDate(date: Date): string {
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+}
+
+/** 24-hour clock time, in local time: "07:30". */
+export function formatClockTime(date: Date): string {
+  return formatMinuteOfDay(minuteOfDay(date));
+}
+
 /** 450 → "07:30" */
 export function formatMinuteOfDay(minute: number): string {
   const normalized = ((Math.trunc(minute) % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;

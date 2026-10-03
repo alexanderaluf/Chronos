@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useDefaultJob } from "@/data/hooks/queries";
-import { updateJob } from "@/data/repositories/jobs-repository";
+import { saveSalarySettings } from "@/data/repositories/shifts-repository";
 import type { Job } from "@/domain/entities";
 import { agreementSupplement, hourlyPayWithAgreement, normalizeSalaryAgreement, type AgreementTreatment } from "@/domain/pay/salary-agreement";
 import { divideRounded } from "@/domain/money/money";
@@ -17,6 +17,8 @@ import { FormScreen } from "@/shared/ui/form/form-screen";
 import { basisPointsToInput, inputToBasisPoints, inputToMinor, inputToWholeNumber, minorToInput, required } from "@/shared/ui/form/input-format";
 import { QueryGate } from "@/shared/ui/query-gate";
 import { i18n } from "@/localization/i18n";
+
+import { askShiftUpdateScope } from "./ask-shift-update-scope";
 
 function SalarySettingsForm({ job }: { job: Job }) {
   const { t } = useTranslation();
@@ -52,7 +54,7 @@ function SalarySettingsForm({ job }: { job: Job }) {
     if (!/^[A-Z]{3}$/.test(currency)) throw new Error(t("salary.currencyError"));
     const rateBp = inputToBasisPoints(agreementRate);
     if (agreement.enabled && (rateBp === null || rateBp > 100_000)) throw new Error(t("salaryAgreement.rateError"));
-    await updateJob(database, job.id, {
+    const patch = {
       name,
       payType,
       hourlyRate: required(inputToMinor(hourlyRate), t("salary.hourlyWage")),
@@ -61,7 +63,16 @@ function SalarySettingsForm({ job }: { job: Job }) {
       monthlyHoursDivisor: required(inputToWholeNumber(divisor), t("salary.monthlyHours")),
       currencyCode: currency,
       payRules: { ...job.payRules, unpaidBreaks, salaryAgreement: { ...agreement, rateBp: rateBp ?? agreement.rateBp } },
-    });
+    };
+    // Shifts keep their own copy of these values, so ask which shifts get the change.
+    const changesShifts =
+      patch.hourlyRate !== job.hourlyRate ||
+      patch.defaultShiftBonus !== job.defaultShiftBonus ||
+      unpaidBreaks !== job.payRules.unpaidBreaks ||
+      JSON.stringify(normalizeSalaryAgreement(patch.payRules.salaryAgreement)) !== JSON.stringify(normalizeSalaryAgreement(job.payRules.salaryAgreement));
+    const scope = changesShifts ? await askShiftUpdateScope() : "newShiftsOnly";
+    if (!scope) return false;
+    await saveSalarySettings(database, job.id, patch, scope);
   }
 
   return (

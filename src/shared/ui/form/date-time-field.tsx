@@ -3,9 +3,7 @@ import { Keyboard, Pressable } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { formatMinuteOfDay } from "@/domain/time/time";
-import { getAppLocale } from "@/shared/lib/format";
-import { useAppLocalization } from "@/localization/localization-provider";
-import type { AppLanguage } from "@/localization/languages";
+import { formatDate } from "@/shared/lib/format";
 
 import { Text } from "../app-text";
 import { DateTimePickerOverlay } from "../controls/date-time-picker-overlay";
@@ -15,10 +13,6 @@ import { FieldRow } from "./fields";
  * Date and time rows for forms. Tapping the value opens the system picker:
  * a native SwiftUI popover on iOS, the native Material dialog on Android.
  */
-
-export function formatPickerDate(date: Date, language?: AppLanguage) {
-  return date.toLocaleDateString(getAppLocale(language), { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** The tappable value pill; the picker anchors to it. */
 function PickerValue({
@@ -83,11 +77,10 @@ export function DateField({
   minimumDate?: Date;
   maximumDate?: Date;
 }) {
-  const { language } = useAppLocalization();
   return (
     <FieldRow hint={hint} label={label}>
       <PickerValue
-        display={formatPickerDate(value, language)}
+        display={formatDate(value)}
         label={label}
         maximumDate={maximumDate}
         minimumDate={minimumDate}

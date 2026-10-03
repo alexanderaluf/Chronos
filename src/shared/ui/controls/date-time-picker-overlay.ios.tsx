@@ -1,9 +1,11 @@
 import { DatePicker, Host, Popover, Spacer, VStack } from "@expo/ui/swift-ui";
-import { datePickerStyle, frame, padding, scaleEffect, tint } from "@expo/ui/swift-ui/modifiers";
+import { datePickerStyle, environment, frame, padding, scaleEffect, tint } from "@expo/ui/swift-ui/modifiers";
 import { useEffect, useRef, useState } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAppLocalization } from "@/localization/localization-provider";
+import type { AppLanguage } from "@/localization/languages";
 import { useAppThemeColors } from "@/shared/theme/app-theme";
 
 import type { DateTimePickerOverlayProps } from "./date-time-picker-overlay.types";
@@ -22,6 +24,8 @@ const PICKER_LAYOUT = {
   },
 } as const;
 const POPOVER_PADDING = 12;
+// Locales whose clock is 24-hour, so the time wheel never shows AM / PM.
+const TIME_LOCALES: Record<AppLanguage, string> = { en: "en_GB", he: "he_IL", ru: "ru_RU" };
 const POPOVER_ARROW_HEIGHT = 16;
 
 /** iOS: a native SwiftUI popover (graphical calendar / time wheel), anchored to the parent. */
@@ -36,6 +40,7 @@ export function DateTimePickerOverlay({
   onDismiss,
 }: DateTimePickerOverlayProps) {
   const theme = useAppThemeColors();
+  const { language } = useAppLocalization();
   const anchorRef = useRef<View>(null);
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -100,6 +105,7 @@ export function DateTimePickerOverlay({
               <DatePicker
                 displayedComponents={[mode === "time" ? "hourAndMinute" : "date"]}
                 modifiers={[
+                  ...(mode === "time" ? [environment("locale", TIME_LOCALES[language])] : []),
                   datePickerStyle(mode === "time" ? "wheel" : "graphical"),
                   tint(theme.accent),
                   frame(layout.contentFrame),

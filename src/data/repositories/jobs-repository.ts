@@ -138,30 +138,33 @@ export async function updateJob(
   id: string,
   patch: Partial<JobInput>,
 ): Promise<Job> {
-  return writeTransaction(database, async (db) => {
-    const current = await getJob(db, id);
-    if (!current) throw new DataValidationError("This job no longer exists.", "job/not-found");
-    const next = { ...current, ...patch };
-    validateJob(next);
-    await db.runAsync(
-      `UPDATE jobs SET name = ?, color = ?, pay_type = ?, hourly_rate_minor = ?, default_shift_bonus_minor = ?, monthly_salary_minor = ?,
-         monthly_hours_divisor = ?, currency_code = ?, travel_per_day_minor = ?, pay_rules_json = ?, updated_at = ?
-       WHERE id = ?`,
-      next.name.trim(),
-      next.color,
-      next.payType,
-      next.hourlyRate,
-      next.defaultShiftBonus,
-      next.monthlySalary,
-      next.monthlyHoursDivisor,
-      next.currencyCode,
-      next.travelPerDay,
-      JSON.stringify(normalizePayRules(next.payRules)),
-      nowIso(),
-      id,
-    );
-    return (await getJob(db, id))!;
-  });
+  return writeTransaction(database, (db) => writeJob(db, id, patch));
+}
+
+/** `updateJob` for code already inside `writeTransaction` (transactions cannot nest). */
+export async function writeJob(db: SQLiteDatabase, id: string, patch: Partial<JobInput>): Promise<Job> {
+  const current = await getJob(db, id);
+  if (!current) throw new DataValidationError("This job no longer exists.", "job/not-found");
+  const next = { ...current, ...patch };
+  validateJob(next);
+  await db.runAsync(
+    `UPDATE jobs SET name = ?, color = ?, pay_type = ?, hourly_rate_minor = ?, default_shift_bonus_minor = ?, monthly_salary_minor = ?,
+       monthly_hours_divisor = ?, currency_code = ?, travel_per_day_minor = ?, pay_rules_json = ?, updated_at = ?
+     WHERE id = ?`,
+    next.name.trim(),
+    next.color,
+    next.payType,
+    next.hourlyRate,
+    next.defaultShiftBonus,
+    next.monthlySalary,
+    next.monthlyHoursDivisor,
+    next.currencyCode,
+    next.travelPerDay,
+    JSON.stringify(normalizePayRules(next.payRules)),
+    nowIso(),
+    id,
+  );
+  return (await getJob(db, id))!;
 }
 
 export async function setJobArchived(database: SQLiteDatabase, id: string, archived: boolean) {

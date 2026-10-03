@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { Keyboard, Pressable, StyleSheet } from "react-native";
 import Animated, {
   interpolateColor,
   ReduceMotion,
@@ -40,7 +40,10 @@ export function AppSwitch({ value, onValueChange, disabled, accessibilityLabel }
       disabled={disabled}
       hitSlop={8}
       style={{ opacity: disabled ? 0.5 : 1 }}
-      onPress={() => onValueChange(!value)}
+      onPress={() => {
+        Keyboard.dismiss();
+        onValueChange(!value);
+      }}
     >
       <Animated.View style={[styles.track, trackStyle]}>
         <Animated.View style={[styles.thumb, thumbStyle]} />

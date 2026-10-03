@@ -38,6 +38,12 @@ import { ArrowBackFill } from "@material-symbols-svg/react-native/rounded/icons/
 import { SaveFill } from "@material-symbols-svg/react-native/rounded/icons/save";
 import { NotesFill } from "@material-symbols-svg/react-native/rounded/icons/notes";
 import { TimerFill } from "@material-symbols-svg/react-native/rounded/icons/timer";
+import { CoffeeFill } from "@material-symbols-svg/react-native/rounded/icons/coffee";
+import { MoreTimeFill } from "@material-symbols-svg/react-native/rounded/icons/more-time";
+import { CelebrationFill } from "@material-symbols-svg/react-native/rounded/icons/celebration";
+import { WeekendFill } from "@material-symbols-svg/react-native/rounded/icons/weekend";
+import { RedeemFill } from "@material-symbols-svg/react-native/rounded/icons/redeem";
+import { VolunteerActivismFill } from "@material-symbols-svg/react-native/rounded/icons/volunteer-activism";
 import type { IconProps, MaterialSymbolsComponent } from "@material-symbols-svg/react-native/rounded/w400";
 import { useThemeColor } from "heroui-native";
 import { useAppLocalization } from "@/localization/localization-provider";
@@ -88,6 +94,12 @@ const icons = {
   save: SaveFill,
   notes: NotesFill,
   timer: TimerFill,
+  coffee: CoffeeFill,
+  "more-time": MoreTimeFill,
+  celebration: CelebrationFill,
+  weekend: WeekendFill,
+  gift: RedeemFill,
+  tips: VolunteerActivismFill,
 } as const satisfies Record<string, MaterialSymbolsComponent>;
 
 export type FilledIconName = keyof typeof icons;

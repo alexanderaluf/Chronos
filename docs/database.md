@@ -14,14 +14,14 @@ All shift, salary and settings data is stored in one SQLite file on the device (
 
 If any step fails, the root `ErrorBoundary` shows the message. No data is deleted.
 
-## Tables (schema v5)
+## Tables (schema v6)
 
 | Table             | Holds                                         | Notes |
 | ----------------- | --------------------------------------------- | ----- |
 | `holiday_year_cache` | Normalized Hebcal events and candle-lighting/nightfall times | One row per year and selected city, or dates-only in custom mode. Fresh for 30 days, with stale-cache fallback offline. Added in v4. |
 | `settings`        | One row per preference (`key`, `value_json`)  | Includes personal info, tax status and employer details. New settings need no migration. Validated by `normalizeSettings`. |
 | `jobs`            | The job and how it pays                        | `pay_type` is hourly or monthly. `hourly_rate_minor` and `default_shift_bonus_minor` (v3) are the **global** rate and bonus copied onto new shifts. `pay_rules_json` holds overtime / night / rest-day rules (validated by `normalizePayRules`). Archived, never deleted. `travel_per_day_minor` is deprecated since v2. |
-| `shifts`          | Every shift                                    | `start_at` / `end_at` are ISO UTC. `end_at` is NULL while clocked in. `hourly_rate_minor` is a snapshot. Has `color` and `label`. Soft delete with `deleted_at`. |
+| `shifts`          | Every shift                                    | `start_at` / `end_at` are ISO UTC. `end_at` is NULL while clocked in. Snapshots copied on creation: `hourly_rate_minor`, `bonus_minor`, `salary_agreement_json` (v5), `unpaid_breaks` and `holiday_pay_json` (v6). Has `color` and `label`. Soft delete with `deleted_at`. |
 | `paid_days`       | Vacation, sick and paid-holiday days           | `date` is a local `YYYY-MM-DD`. Pay = minutes × `hourly_rate_minor` (snapshot) × `rate_bp`. |
 | `shift_templates` | "Fixed shifts" (presets)                       | Fixed hours (`start_minute`/`end_minute`) or variable hours (both NULL), plus optional rate and bonus. |
 | `pay_components`  | Recurring additions and deductions             | `calculation`: monthlyFixed, perWorkDay, perWorkHour, percentOfGross. |
@@ -92,6 +92,17 @@ Validation failures throw `DataValidationError`, which has a human-readable `mes
 
 Salary rates optionally store `jobs.pay_rules_json.restWindow` with local `startDay`, `startMinute`, `endDay`, and `endMinute`. No schema migration is needed. Missing/null windows preserve the existing selected-weekday behavior. Custom windows repeat weekly and split worked time at exact boundaries, retaining overtime tiers and taking the higher overlapping holiday rate. Unpaid breaks are allocated at the end of a shift. Pay-rule edits refresh existing reports without changing saved hourly-rate or salary-supplement snapshots.
 
-Salary settings store an optional percentage supplement in `jobs.pay_rules_json.salaryAgreement`. Each new shift copies it to `shifts.salary_agreement_json`; legacy shifts default to disabled. Changing the job never rewrites those snapshots. The base hourly rate stays separate. Overtime, weekly rest and holidays independently exclude the supplement, add it without a multiplier, or multiply it by the applicable pay rate. Overlapping exclusions win, then flat addition. Night premium inclusion is separately configurable and still respects these exclusions.
+Salary settings store an optional percentage supplement in `jobs.pay_rules_json.salaryAgreement`. Each new shift copies it to `shifts.salary_agreement_json`; legacy shifts default to disabled. Only `saveSalarySettings` with the "currentPeriod" scope rewrites those snapshots (see below). The base hourly rate stays separate. Overtime, weekly rest and holidays independently exclude the supplement, add it without a multiplier, or multiply it by the applicable pay rate. Overlapping exclusions win, then flat addition. Night premium inclusion is separately configurable and still respects these exclusions.
 
 Monthly jobs add the supplement once to the global monthly salary; regular shift hours add only extra premiums, while overtime is paid in full as before. Paid days and the standalone quick calculator retain their existing base-rate calculations. No agreement names, sector rates, or legal entitlement are inferred.
+
+## Settings changes and shift snapshots (v6)
+
+Migration 6 adds `shifts.unpaid_breaks` and `shifts.holiday_pay_json`, filled for existing shifts with the job's unpaid-break rule and the holiday settings in effect at the upgrade, so no existing total changes. New shifts copy both on creation, like the hourly rate, bonus and salary supplement. Reports price each shift with its own copies; holiday intervals are looked up once per distinct saved holiday configuration.
+
+After Save, Salary settings and Holiday pay ask which shifts get the change (only when a copied value changed):
+
+- **All shifts this month** (`"currentPeriod"`): `saveSalarySettings` writes each *changed* value (hourly rate, bonus per shift, salary supplement, unpaid breaks) to every shift of the job that started in the current pay period, including shifts with a custom rate or bonus. `saveHolidayPaySettings` writes the holiday settings to every shift of the current pay period. The settings and the shift updates are one transaction.
+- **Only new shifts** (`"newShiftsOnly"`): only the settings are saved. Existing shifts are not touched.
+
+Earlier pay periods never change. Job name, pay type, currency, monthly salary and monthly hours are job-level values with no per-shift copy; they still apply to every month.

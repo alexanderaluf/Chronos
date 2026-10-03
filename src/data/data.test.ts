@@ -23,7 +23,7 @@ import { createPayComponent, listPayComponents } from "./repositories/pay-compon
 import { clearPlannedShift, getNextPlannedShift, savePlannedShift } from "./repositories/planned-shifts-repository";
 import { getSettings, updateSettings } from "./repositories/settings-repository";
 import { createShiftTemplate, listShiftTemplates } from "./repositories/shift-templates-repository";
-import { clockIn, clockOut, createShift, deleteShift, getOpenShift, restoreShift, updateShift } from "./repositories/shifts-repository";
+import { clockIn, clockOut, createShift, deleteShift, getOpenShift, getShift, restoreShift, saveHolidayPaySettings, saveSalarySettings, updateShift } from "./repositories/shifts-repository";
 import { getActiveTaxProfile } from "./repositories/tax-profiles-repository";
 import { createTestDatabase, migrateTestDatabase } from "./testing/node-sqlite-database";
 
@@ -284,21 +284,32 @@ describe("Hebcal and holiday cache", () => {
     assert.equal(normalized.rateBp, 15000); assert.equal(normalized.timezone, "Asia/Jerusalem");
     assert.equal(normalized.customStartMinute, 1080); assert.equal(normalized.customEndMinute, 1140); assert.equal(normalized.workCity, null);
   });
-  it("recalculates saved shifts after global settings change without mutating history", async () => {
+  it("keeps each shift's holiday settings unless the user applies a change to this month", async () => {
     const db = await createTestDatabase();
     const [job] = await listJobs(db);
     await updateJob(db, job.id, { hourlyRate: 5000, payRules: { ...job.payRules, overtimeEnabled: false, restDays: [] } });
-    const shift = await createShift(db, { jobId: job.id, startAt: start, endAt: end, timeZone: "Asia/Jerusalem" });
     await saveHolidayYearCache(db, "v1:2027:dates", 2027, calendar);
     await updateSettings(db, { holidayPay: settings });
+    const shift = await createShift(db, { jobId: job.id, startAt: start, endAt: end, timeZone: "Asia/Jerusalem" });
+    assert.deepEqual(shift.holidayPay, normalizeHolidayPaySettings(settings));
     const before = await loadPeriodReport(db, "2027-06");
     assert.equal(before.shifts[0].pay.total, 50000);
     assert.equal(before.payslip.earnings.find((line) => line.key === "holidayPremium")?.amount, 10000);
-    await updateSettings(db, { holidayPay: { ...settings, customStartMinute: 1095 } });
-    const after = await loadPeriodReport(db, "2027-06");
-    assert.equal(after.shifts[0].pay.total, 49375);
-    assert.deepEqual(after.shifts[0].shift, shift);
-    await updateSettings(db, { holidayPay: { ...settings, enabled: false } });
+
+    // "Only new shifts": the saved shift keeps its settings; a new one uses the change.
+    const june = wall("2027-06-15", 12);
+    await saveHolidayPaySettings(db, { ...settings, customStartMinute: 1095 }, "newShiftsOnly", june);
+    assert.equal((await loadPeriodReport(db, "2027-06")).shifts[0].pay.total, 50000);
+    const later = await createShift(db, { jobId: job.id, startAt: wall("2027-06-20", 8), endAt: wall("2027-06-20", 9), timeZone: "Asia/Jerusalem" });
+    assert.equal(later.holidayPay?.customStartMinute, 1095);
+
+    // "All shifts this month": the earlier shift is recalculated with the change.
+    await saveHolidayPaySettings(db, { ...settings, customStartMinute: 1095 }, "currentPeriod", june);
+    assert.equal((await loadPeriodReport(db, "2027-06")).shifts[0].pay.total, 49375);
+    await saveHolidayPaySettings(db, { ...settings, enabled: false }, "currentPeriod", june);
+    assert.equal((await loadPeriodReport(db, "2027-06")).shifts[0].pay.total, 40000);
+    // Saving while in a later month leaves June untouched.
+    await saveHolidayPaySettings(db, settings, "currentPeriod", wall("2027-07-15", 12));
     assert.equal((await loadPeriodReport(db, "2027-06")).shifts[0].pay.total, 40000);
   });
 });
@@ -335,6 +346,62 @@ describe("salary agreement storage", () => {
   });
 });
 
+
+describe("applying salary settings to shifts", () => {
+  const october = local(2026, 10, 15, 12);
+
+  async function setUp() {
+    const db = await createTestDatabase();
+    const [job] = await listJobs(db);
+    await updateJob(db, job.id, { hourlyRate: 4_000, defaultShiftBonus: 1_000, payRules: { ...job.payRules, overtimeEnabled: false, restDays: [] } });
+    const shift = (day: Date, extra: { hourlyRate?: number } = {}) =>
+      createShift(db, { jobId: job.id, startAt: day, endAt: new Date(day.getTime() + 8 * 3_600_000), timeZone: "Asia/Jerusalem", breakMinutes: 30, ...extra });
+    const september = await shift(local(2026, 9, 20, 8));
+    const usesGlobal = await shift(local(2026, 10, 2, 8));
+    const custom = await shift(local(2026, 10, 3, 8), { hourlyRate: 6_000 });
+    return { db, job: (await listJobs(db))[0], september, usesGlobal, custom };
+  }
+
+  it("updates every shift of this pay period with the changed values only", async () => {
+    const { db, job, september, usesGlobal, custom } = await setUp();
+    await saveSalarySettings(db, job.id, { hourlyRate: 5_000, payRules: { ...job.payRules, unpaidBreaks: false } }, "currentPeriod", october);
+
+    for (const shift of [usesGlobal, custom]) {
+      const saved = (await getShift(db, shift.id))!;
+      assert.equal(saved.hourlyRate, 5_000, "the new rate replaces global and custom rates this month");
+      assert.equal(saved.bonus, 1_000, "an unchanged bonus is left alone");
+      assert.equal(saved.unpaidBreaks, false);
+    }
+    const old = (await getShift(db, september.id))!;
+    assert.deepEqual([old.hourlyRate, old.unpaidBreaks], [4_000, true], "earlier months never change");
+    // 8 h paid (the break is now paid) x 50.00 + 10.00 bonus.
+    assert.deepEqual((await loadPeriodReport(db, "2026-10")).shifts.map((item) => item.pay.total), [41_000, 41_000]);
+    // 7.5 h x 40.00 + 10.00 bonus: September keeps its rate and its unpaid break.
+    assert.equal((await loadPeriodReport(db, "2026-09")).shifts[0].pay.total, 31_000);
+  });
+
+  it("keeps every existing shift when the change is for new shifts only", async () => {
+    const { db, job, usesGlobal } = await setUp();
+    await saveSalarySettings(db, job.id, { hourlyRate: 5_000, defaultShiftBonus: 0, payRules: { ...job.payRules, unpaidBreaks: false } }, "newShiftsOnly", october);
+
+    assert.deepEqual((await loadPeriodReport(db, "2026-10")).shifts.map((item) => item.pay.total), [31_000, 46_000]);
+    assert.equal((await getShift(db, usesGlobal.id))!.updatedAt, usesGlobal.updatedAt, "the record is not rewritten");
+    const next = await createShift(db, { jobId: job.id, startAt: local(2026, 10, 4, 8), endAt: local(2026, 10, 4, 16), timeZone: "Asia/Jerusalem", breakMinutes: 30 });
+    assert.deepEqual([next.hourlyRate, next.bonus, next.unpaidBreaks], [5_000, 0, false]);
+  });
+
+  it("migrates old shifts with the break and holiday settings they were calculated with", async () => {
+    const db = await createTestDatabase(5);
+    const [job] = await listJobs(db);
+    await updateJob(db, job.id, { payRules: { ...job.payRules, unpaidBreaks: false } });
+    await updateSettings(db, { holidayPay: { ...DEFAULT_HOLIDAY_PAY_SETTINGS, enabled: false } });
+    await db.runAsync("INSERT INTO shifts (id, job_id, start_at, end_at, time_zone, hourly_rate_minor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", "legacy", job.id, local(2026, 10, 4, 8).toISOString(), local(2026, 10, 4, 9).toISOString(), "Asia/Jerusalem", 3900, "2026-10-04", "2026-10-04");
+    await migrateTestDatabase(db, 5, 6);
+    const legacy = (await getShift(db, "legacy"))!;
+    assert.equal(legacy.unpaidBreaks, false);
+    assert.equal(legacy.holidayPay?.enabled, false);
+  });
+});
 
 describe("night-shift toggle persistence", () => {
   it("keeps the disabled state and configured night values when saving a job", async () => {

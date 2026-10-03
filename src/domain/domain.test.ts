@@ -21,7 +21,9 @@ import { calculateMandatoryDeductions, calculateProgressiveTax } from "./tax/man
 import { ISRAEL_2026_TAX_RULES, normalizeTaxRules } from "./tax/tax-rules";
 import { DEFAULT_PERSONAL_INFO, DEFAULT_TAX_STATUS } from "./tax/tax-status";
 import {
+  formatClockTime,
   formatMinuteOfDay,
+  formatNumericDate,
   getPayPeriod,
   getPayPeriodForDate,
   minutesBetween,
@@ -99,6 +101,9 @@ describe("time", () => {
     assert.equal(toLocalDateKey(range.end), "2026-10-02");
     assert.equal(minutesBetween(range.start, range.end), 480);
     assert.equal(formatMinuteOfDay(450), "07:30");
+    assert.equal(formatNumericDate(local(2026, 10, 2)), "02/10/2026");
+    assert.equal(formatClockTime(local(2026, 10, 2, 7, 5)), "07:05");
+    assert.equal(formatClockTime(local(2026, 10, 2, 19, 45)), "19:45");
   });
 });
 

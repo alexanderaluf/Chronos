@@ -2,7 +2,7 @@ import { getCalendars, getLocales } from "expo-localization";
 
 import type { MinorUnits } from "@/domain/money/money";
 import { HOLIDAY_TIMEZONE } from "@/domain/holidays/holiday-settings";
-import { formatDuration } from "@/domain/time/time";
+import { formatClockTime, formatDuration, formatNumericDate } from "@/domain/time/time";
 import { i18n } from "@/localization/i18n";
 import { localizedDayLabel, localizedMonthLabel } from "@/localization/dates";
 import { isAppLanguage, type AppLanguage } from "@/localization/languages";
@@ -50,11 +50,17 @@ export function formatHours(minutes: number): string {
   return i18n.t("units.hours", { value: formatDuration(minutes) });
 }
 
+/** Always 24-hour: "19:45". */
 export function formatTime(date: Date): string {
-  return date.toLocaleTimeString(getAppLocale(), { hour: "2-digit", minute: "2-digit" });
+  return formatClockTime(date);
 }
 
-/** Holiday payroll clocks always use Israel time, including on devices abroad. */
+/** The app's date format in every language: "02/10/2026" (dd/mm/yyyy). */
+export function formatDate(date: Date): string {
+  return formatNumericDate(date);
+}
+
+/** Holiday payroll clocks always use Israel time (24-hour), including on devices abroad. */
 export function formatHolidayTime(date: Date): string {
   return new Intl.DateTimeFormat(getAppLocale(), { timeZone: HOLIDAY_TIMEZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
 }

@@ -12,7 +12,7 @@ describe("translated month labels", () => {
     assert.equal(localizedMonthLabel(october, "he"), "אוקטובר 2026");
     assert.equal(localizedMonthLabel(october, "he", true), "אוק׳");
     assert.equal(localizedMonthLabel(november, "he", true), "נוב׳");
-    assert.match(localizedDayLabel(october, "he"), /אוק׳/);
+    assert.equal(localizedDayLabel(october, "he"), "ה׳, 01/10/2026");
   });
 
   it("uses English and Russian names", () => {
@@ -20,6 +20,7 @@ describe("translated month labels", () => {
     assert.equal(localizedMonthLabel(november, "en", true), "Nov");
     assert.equal(localizedMonthLabel(october, "ru"), "октябрь 2026");
     assert.equal(localizedMonthLabel(november, "ru", true), "ноя");
+    assert.equal(localizedDayLabel(october, "en"), "Thu, 01/10/2026");
   });
 
   it("follows the explicit app language even when the global language differs", async () => {

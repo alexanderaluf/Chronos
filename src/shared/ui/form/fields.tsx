@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactNode } from "react";
-import { Pressable, View, type KeyboardTypeOptions } from "react-native";
+import { Keyboard, Pressable, View, type KeyboardTypeOptions } from "react-native";
 import Animated, { Easing, FadeInDown, ReduceMotion } from "react-native-reanimated";
 
 import { useAppLocalization } from "@/localization/localization-provider";
@@ -158,7 +158,10 @@ export function LinkRow({
       accessibilityRole="button"
       className="min-h-19 flex-row items-center border-b-2 border-background px-4 py-3"
       style={({ pressed }) => ({ direction, opacity: pressed ? 0.72 : 1 })}
-      onPress={onPress}
+      onPress={() => {
+        Keyboard.dismiss();
+        onPress();
+      }}
     >
       {icon ? (
         iconBackground ? (
@@ -190,7 +193,10 @@ export function AddRow({ label, onPress }: { label: string; onPress: () => void 
       accessibilityRole="button"
       className="min-h-14 flex-row items-center gap-3 px-4 py-3"
       style={({ pressed }) => ({ opacity: pressed ? 0.68 : 1 })}
-      onPress={onPress}
+      onPress={() => {
+        Keyboard.dismiss();
+        onPress();
+      }}
     >
       <View className="size-6 items-center justify-center rounded-full border border-accent">
         <FilledIcon name="add" size={17} tone="accent" />
@@ -222,7 +228,10 @@ export function FormButton({
       accessibilityRole="button"
       className={`min-h-14 flex-row items-center justify-center gap-2 rounded-full px-5 ${classes[0]}`}
       style={({ pressed }) => ({ opacity: pressed ? 0.72 : 1 })}
-      onPress={onPress}
+      onPress={() => {
+        Keyboard.dismiss();
+        onPress();
+      }}
     >
       {icon ? <FilledIcon name={icon} size={22} tone={classes[2]} /> : null}
       <Text className={`font-manrope-bold text-base ${classes[1]}`}>{label}</Text>

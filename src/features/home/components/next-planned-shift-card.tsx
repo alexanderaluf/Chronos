@@ -4,6 +4,7 @@ import { Pressable, View } from "react-native";
 
 import { useNextPlannedShift } from "@/data/hooks/queries";
 import { formatMinuteOfDay, fromLocalDateKey, toLocalDateKey } from "@/domain/time/time";
+import { useAppLocalization } from "@/localization/localization-provider";
 import { formatDayLabel } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 import { FilledIcon } from "@/shared/ui/filled-icon";
@@ -12,6 +13,7 @@ import { Panel } from "@/shared/ui/section";
 /** The next shift from the weekly schedule, if one is planned. */
 export function NextPlannedShiftCard() {
   const { t } = useTranslation();
+  const { language } = useAppLocalization();
   const next = useNextPlannedShift(toLocalDateKey(new Date()));
   if (!next.data) return null;
   const plan = next.data;
@@ -24,7 +26,7 @@ export function NextPlannedShiftCard() {
         <View className="flex-1">
           <Text className="text-xs text-muted">{t("home.nextPlanned")}</Text>
           <Text className="text-base">
-            {isToday ? t("home.today") : formatDayLabel(fromLocalDateKey(plan.date))} · {formatMinuteOfDay(plan.startMinute)}–
+            {isToday ? t("home.today") : formatDayLabel(fromLocalDateKey(plan.date), language)} · {formatMinuteOfDay(plan.startMinute)}–
             {formatMinuteOfDay(plan.endMinute)}
           </Text>
         </View>

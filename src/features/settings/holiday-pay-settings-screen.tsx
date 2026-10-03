@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSettings } from "@/data/hooks/queries";
-import { updateSettings } from "@/data/repositories/settings-repository";
+import { saveHolidayPaySettings } from "@/data/repositories/shifts-repository";
 import { WORK_CITIES, normalizeHolidayPaySettings, type HolidayPaySettings, type WorkCity } from "@/domain/holidays/holiday-settings";
 import { formatMinuteOfDay, minuteOfDay } from "@/domain/time/time";
 import { Text } from "@/shared/ui/app-text";
@@ -13,6 +13,8 @@ import { FormSection, SegmentedField } from "@/shared/ui/form/fields";
 import { FormScreen } from "@/shared/ui/form/form-screen";
 import { SelectionSection } from "@/shared/ui/form/selection-section";
 import { QueryGate } from "@/shared/ui/query-gate";
+
+import { askShiftUpdateScope } from "./ask-shift-update-scope";
 
 function HolidayPayForm({ initial }: { initial: HolidayPaySettings }) {
   const { t } = useTranslation();
@@ -25,7 +27,11 @@ function HolidayPayForm({ initial }: { initial: HolidayPaySettings }) {
     if (value.enabled && value.windowMode === "automatic" && !value.workCity) {
       throw new Error(t("holidayPay.status.needsLocation"));
     }
-    await updateSettings(database, { holidayPay: normalizeHolidayPaySettings(value) });
+    const next = normalizeHolidayPaySettings(value);
+    // Shifts keep their own copy of these settings, so ask which shifts get the change.
+    const scope = JSON.stringify(next) !== JSON.stringify(normalizeHolidayPaySettings(initial)) ? await askShiftUpdateScope() : "newShiftsOnly";
+    if (!scope) return false;
+    await saveHolidayPaySettings(database, next, scope);
   }
 
   return (

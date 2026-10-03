@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Keyboard, Pressable, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import { FilledIcon } from "../filled-icon";
@@ -31,7 +31,10 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (col
             accessibilityState={{ selected }}
             className="size-9 items-center justify-center rounded-full"
             style={{ backgroundColor: color }}
-            onPress={() => onChange(color)}
+            onPress={() => {
+              Keyboard.dismiss();
+              onChange(color);
+            }}
           >
             {selected ? <FilledIcon color="#1d2a22" name="check" size={20} /> : null}
           </Pressable>

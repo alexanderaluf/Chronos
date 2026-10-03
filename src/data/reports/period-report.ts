@@ -11,7 +11,15 @@ import { listPayComponents } from "../repositories/pay-components-repository";
 import { getSettings } from "../repositories/settings-repository";
 import { listShiftsStartingBetween } from "../repositories/shifts-repository";
 import { getActiveTaxProfile } from "../repositories/tax-profiles-repository";
-import { ensureHolidayDataForRange } from "../holidays/holiday-service";
+import { ensureHolidayDataForRange, type HolidayLookup } from "../holidays/holiday-service";
+import type { HolidayPaySettings } from "@/domain/holidays/holiday-settings";
+
+/** The notice to show for a period: any problem first, then "ready", then "disabled". */
+function combinedHolidayStatus(lookups: HolidayLookup[]): HolidayLookup["status"] {
+  const statuses = lookups.map((lookup) => lookup.status);
+  return statuses.find((status) => status !== "ready" && status !== "disabled")
+    ?? (statuses.includes("ready") ? "ready" : "disabled");
+}
 
 /** Loads everything for one pay period and runs the salary calculation. */
 export async function loadPeriodReport(database: SQLiteDatabase, periodKey: PeriodKey): Promise<PeriodSummary> {
@@ -33,9 +41,20 @@ export async function loadPeriodReport(database: SQLiteDatabase, periodKey: Peri
     period.start.getFullYear(),
   );
   const lastShiftEnd = Math.max(period.end.getTime(), ...shifts.map((shift) => shift.endAt ? Date.parse(shift.endAt) : 0));
-  const holidays = await ensureHolidayDataForRange(database, period.start, new Date(lastShiftEnd), settings.holidayPay);
+  // Each shift keeps the holiday settings it was saved with; look up each distinct one once.
+  const holidayKey = (holidayPay: HolidayPaySettings) => JSON.stringify(holidayPay);
+  const holidaySettings = new Map<string, HolidayPaySettings>();
+  for (const shift of shifts) {
+    const holidayPay = shift.holidayPay ?? settings.holidayPay;
+    holidaySettings.set(holidayKey(holidayPay), holidayPay);
+  }
+  if (holidaySettings.size === 0) holidaySettings.set(holidayKey(settings.holidayPay), settings.holidayPay);
+  const lookups = new Map<string, HolidayLookup>();
+  await Promise.all([...holidaySettings].map(async ([key, holidayPay]) => {
+    lookups.set(key, await ensureHolidayDataForRange(database, period.start, new Date(lastShiftEnd), holidayPay));
+  }));
   return { ...summarizePeriod({
-    holidayIntervals: holidays.intervals,
+    holidayIntervalsFor: (shift) => lookups.get(holidayKey(shift.holidayPay ?? settings.holidayPay))?.intervals ?? [],
     period,
     jobs,
     shifts,
@@ -45,7 +64,7 @@ export async function loadPeriodReport(database: SQLiteDatabase, periodKey: Peri
     taxRules: taxProfile.rules,
     taxStatus: settings.taxStatus,
     creditPoints,
-  }), holidayStatus: holidays.status };
+  }), holidayStatus: combinedHolidayStatus([...lookups.values()]) };
 }
 
 export type YearMonth = { periodKey: PeriodKey; gross: number; net: number; workedMinutes: number; shiftCount: number };

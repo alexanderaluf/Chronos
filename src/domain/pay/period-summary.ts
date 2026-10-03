@@ -40,6 +40,8 @@ export type PeriodSummary = {
 
 export type PeriodSummaryInput = {
   holidayIntervals?: readonly HolidayPremiumInterval[];
+  /** Per-shift holiday intervals (each shift keeps its own holiday settings); wins over `holidayIntervals`. */
+  holidayIntervalsFor?: (shift: Shift) => readonly HolidayPremiumInterval[];
   period: PayPeriod;
   /** Every job that may appear; monthly salaries are added for non-archived monthly jobs. */
   jobs: Job[];
@@ -74,7 +76,7 @@ export function calculatePayForShift(shift: Shift, job: Job, holidayIntervals: r
     isHoliday: shift.isHoliday,
     bonus: shift.bonus,
     tips: shift.tips,
-    rules: job.payRules,
+    rules: shift.unpaidBreaks === undefined ? job.payRules : { ...job.payRules, unpaidBreaks: shift.unpaidBreaks },
   });
 }
 
@@ -99,7 +101,7 @@ export function summarizePeriod(input: PeriodSummaryInput): PeriodSummary {
 
   for (const shift of input.shifts) {
     const job = jobsById.get(shift.jobId);
-    const pay = job ? calculatePayForShift(shift, job, input.holidayIntervals) : null;
+    const pay = job ? calculatePayForShift(shift, job, input.holidayIntervalsFor?.(shift) ?? input.holidayIntervals) : null;
     if (!job || !pay) continue;
     shifts.push({ shift, job, pay });
     const day = dayFor(toLocalDateKey(fromIso(shift.startAt)));

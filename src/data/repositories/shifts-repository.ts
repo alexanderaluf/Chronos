@@ -1,8 +1,9 @@
 import { normalizeSalaryAgreement } from "@/domain/pay/salary-agreement";
 import type { SQLiteDatabase } from "expo-sqlite";
 
-import type { Shift } from "@/domain/entities";
-import { fromIso, toIso } from "@/domain/time/time";
+import type { Job, Shift } from "@/domain/entities";
+import { normalizeHolidayPaySettings, type HolidayPaySettings } from "@/domain/holidays/holiday-settings";
+import { fromIso, getPayPeriodForDate, toIso } from "@/domain/time/time";
 
 import {
   DataValidationError,
@@ -13,7 +14,8 @@ import {
   toSqlBoolean,
   writeTransaction,
 } from "../database/sql";
-import { getJob } from "./jobs-repository";
+import { getJob, writeJob, type JobInput } from "./jobs-repository";
+import { getSettings, writeSettings } from "./settings-repository";
 
 /**
  * Shifts are the core record. Rules enforced here:
@@ -26,6 +28,8 @@ import { getJob } from "./jobs-repository";
 
 type ShiftRow = {
   salary_agreement_json: string;
+  unpaid_breaks: number;
+  holiday_pay_json: string;
   id: string;
   job_id: string;
   start_at: string;
@@ -47,6 +51,8 @@ type ShiftRow = {
 function toShift(row: ShiftRow): Shift {
   return {
     salaryAgreement: normalizeSalaryAgreement(parseJson(row.salary_agreement_json)),
+    unpaidBreaks: fromSqlBoolean(row.unpaid_breaks),
+    holidayPay: normalizeHolidayPaySettings(parseJson(row.holiday_pay_json)),
     id: row.id,
     jobId: row.job_id,
     startAt: row.start_at,
@@ -179,11 +185,13 @@ export async function createShift(database: SQLiteDatabase, input: ShiftInput): 
       throw new DataValidationError("You are already clocked in.", "shift/already-open");
     }
     await assertNoOverlap(db, input.startAt, input.endAt);
+    const settings = await getSettings(db);
     const now = nowIso();
     await db.runAsync(
       `INSERT INTO shifts (id, job_id, start_at, end_at, time_zone, break_minutes, hourly_rate_minor,
-         is_holiday, bonus_minor, tips_minor, note, color, label, created_at, updated_at, salary_agreement_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         is_holiday, bonus_minor, tips_minor, note, color, label, created_at, updated_at, salary_agreement_json,
+         unpaid_breaks, holiday_pay_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.jobId,
       toIso(input.startAt),
@@ -200,6 +208,8 @@ export async function createShift(database: SQLiteDatabase, input: ShiftInput): 
       now,
       now,
       JSON.stringify(normalizeSalaryAgreement(job.payRules.salaryAgreement)),
+      toSqlBoolean(job.payRules.unpaidBreaks),
+      JSON.stringify(settings.holidayPay),
     );
   });
   return (await getShift(database, id))!;
@@ -271,5 +281,76 @@ export async function restoreShift(database: SQLiteDatabase, id: string) {
     if (!shift) return;
     await assertNoOverlap(db, fromIso(shift.startAt), shift.endAt ? fromIso(shift.endAt) : null, id);
     await db.runAsync("UPDATE shifts SET deleted_at = NULL, updated_at = ? WHERE id = ?", nowIso(), id);
+  });
+}
+
+// ─── Settings changes ───────────────────────────────────────────────────────
+
+/**
+ * Which existing shifts take new salary or holiday pay settings:
+ * - "currentPeriod": the shifts that started in the current pay period,
+ * - "newShiftsOnly": none. Only shifts created from now on use them.
+ */
+export type ShiftUpdateScope = "currentPeriod" | "newShiftsOnly";
+
+async function currentPeriodRange(db: SQLiteDatabase, now: Date): Promise<[string, string]> {
+  const period = getPayPeriodForDate(now, (await getSettings(db)).payPeriodStartDay);
+  return [toIso(period.start), toIso(period.end)];
+}
+
+/**
+ * Saves Salary settings. With "currentPeriod", every value that changed
+ * (hourly rate, bonus per shift, salary supplement, unpaid breaks) is written
+ * to all of this pay period's shifts of the job, including shifts that had a
+ * custom rate or bonus. Unchanged values and earlier periods are never touched.
+ */
+export async function saveSalarySettings(
+  database: SQLiteDatabase,
+  jobId: string,
+  patch: Partial<JobInput>,
+  scope: ShiftUpdateScope,
+  now = new Date(),
+): Promise<Job> {
+  return writeTransaction(database, async (db) => {
+    const before = await getJob(db, jobId);
+    if (!before) throw new DataValidationError("This job no longer exists.", "job/not-found");
+    const after = await writeJob(db, jobId, patch);
+    if (scope === "newShiftsOnly") return after;
+
+    const agreement = JSON.stringify(normalizeSalaryAgreement(after.payRules.salaryAgreement));
+    const changes: [column: string, value: number | string][] = [];
+    if (after.hourlyRate !== before.hourlyRate) changes.push(["hourly_rate_minor", after.hourlyRate]);
+    if (after.defaultShiftBonus !== before.defaultShiftBonus) changes.push(["bonus_minor", after.defaultShiftBonus]);
+    if (agreement !== JSON.stringify(normalizeSalaryAgreement(before.payRules.salaryAgreement))) changes.push(["salary_agreement_json", agreement]);
+    if (after.payRules.unpaidBreaks !== before.payRules.unpaidBreaks) changes.push(["unpaid_breaks", toSqlBoolean(after.payRules.unpaidBreaks)]);
+    if (changes.length === 0) return after;
+
+    const [from, to] = await currentPeriodRange(db, now);
+    await db.runAsync(
+      `UPDATE shifts SET ${changes.map(([column]) => `${column} = ?`).join(", ")}, updated_at = ?
+       WHERE job_id = ? AND deleted_at IS NULL AND start_at >= ? AND start_at < ?`,
+      ...changes.map(([, value]) => value), nowIso(), jobId, from, to,
+    );
+    return after;
+  });
+}
+
+/** Saves the holiday pay settings. With "currentPeriod", this pay period's shifts use them too. */
+export async function saveHolidayPaySettings(
+  database: SQLiteDatabase,
+  holidayPay: HolidayPaySettings,
+  scope: ShiftUpdateScope,
+  now = new Date(),
+): Promise<HolidayPaySettings> {
+  return writeTransaction(database, async (db) => {
+    const saved = (await writeSettings(db, { holidayPay })).holidayPay;
+    if (scope === "currentPeriod") {
+      const [from, to] = await currentPeriodRange(db, now);
+      await db.runAsync(
+        "UPDATE shifts SET holiday_pay_json = ?, updated_at = ? WHERE deleted_at IS NULL AND start_at >= ? AND start_at < ?",
+        JSON.stringify(saved), nowIso(), from, to,
+      );
+    }
+    return saved;
   });
 }

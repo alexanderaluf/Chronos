@@ -1,10 +1,12 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, TextInput, type TextInputProps } from "react-native";
+import { Pressable, TextInput, View, type TextInputProps } from "react-native";
 
 import { useAppLocalization } from "@/localization/localization-provider";
 import { formatNumber } from "@/shared/lib/format";
 import { useAppThemeColors } from "@/shared/theme/app-theme";
+
+import { useRevealOnFocus } from "./form-scroll";
 
 type EditableInputProps = TextInputProps & {
   label: string;
@@ -24,12 +26,15 @@ export function EditableInput({
   const { direction, isRTL, language } = useAppLocalization();
   const { accent, border, muted, surfaceSecondary } = useAppThemeColors();
   const input = useRef<TextInput>(null);
+  const container = useRef<View>(null);
+  const reveal = useRevealOnFocus();
   const [focused, setFocused] = useState(false);
   const inputDirection = numeric || props.keyboardType === "email-address" ? "ltr" : direction;
   const fallback = numeric ? formatNumber(0, { minimumFractionDigits: props.keyboardType === "decimal-pad" && !compact ? 2 : 0, maximumFractionDigits: 2 }, language) : t("inputs.placeholder", { field: label });
 
   return (
     <Pressable
+      ref={container}
       accessible={false}
       disabled={!editable}
       className={`min-w-0 max-w-full flex-row gap-2 rounded-xl border ${multiline ? "items-start" : "items-center"} ${compact ? "min-h-11 px-2" : "min-h-12 px-3"} ${containerClassName ?? ""}`}
@@ -54,8 +59,8 @@ export function EditableInput({
         selectionColor={accent}
         underlineColorAndroid="transparent"
         style={[{ direction: "ltr", writingDirection: inputDirection, textAlign: isRTL ? numeric ? "left" : "right" : numeric ? "right" : "left", textAlignVertical: multiline ? "top" : "center" }, style]}
-        onFocus={(event) => { setFocused(true); onFocus?.(event); }}
-        onBlur={(event) => { setFocused(false); onBlur?.(event); }}
+        onFocus={(event) => { setFocused(true); reveal(container.current); onFocus?.(event); }}
+        onBlur={(event) => { setFocused(false); reveal(null); onBlur?.(event); }}
       />
       {trailing}
     </Pressable>

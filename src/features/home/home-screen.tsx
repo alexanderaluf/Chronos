@@ -1,13 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { SectionList, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { usePeriodReport } from "@/data/hooks/queries";
-import type { ShiftWithPay } from "@/domain/pay/period-summary";
-import { fromIso, fromLocalDateKey, parsePeriodKey, toLocalDateKey } from "@/domain/time/time";
+import { parsePeriodKey } from "@/domain/time/time";
+import { useClockInOut } from "@/features/shifts/hooks/use-clock-in-out";
 import { usePeriodNavigation } from "@/features/shifts/hooks/use-period-key";
 import { useAppLocalization } from "@/localization/localization-provider";
-import { formatDayLabel, formatMonthLabel } from "@/shared/lib/format";
+import { formatDate, formatMonthLabel } from "@/shared/lib/format";
 import { BOTTOM_NAVIGATION_CLEARANCE } from "@/shared/navigation/bottom-navigation";
 import { Text, TextAlignmentProvider } from "@/shared/ui/app-text";
 import { AppSpinner } from "@/shared/ui/controls/app-spinner";
@@ -15,59 +15,52 @@ import { FilledIcon } from "@/shared/ui/filled-icon";
 import { PeriodSwitcher } from "@/shared/ui/period-switcher";
 import { TopSafeAreaGradient } from "@/shared/ui/safe-area-gradients";
 
+import { ActiveShiftCard } from "./components/active-shift-card";
 import { HomeShiftRow } from "./components/home-shift-row";
+import { NextPlannedShiftCard } from "./components/next-planned-shift-card";
 
-/** Home is a browsable shift ledger, grouped by the day each shift started. */
+/**
+ * Home: what Calendar and Stats do not show. The running shift and the next
+ * planned shift (current period only), then every shift of the period as one
+ * flat list, newest first.
+ */
 export function HomeScreen() {
   const { t } = useTranslation();
   const { language, direction } = useAppLocalization();
   const insets = useSafeAreaInsets();
   const navigation = usePeriodNavigation();
+  const clock = useClockInOut();
   const report = usePeriodReport(navigation.periodKey);
   const selected = parsePeriodKey(navigation.periodKey);
   const summary = report.data?.period.key === navigation.periodKey ? report.data : undefined;
-  const groups = new Map<string, ShiftWithPay[]>();
-
-  for (const item of [...(summary?.shifts ?? [])].reverse()) {
-    const day = toLocalDateKey(fromIso(item.shift.startAt));
-    const shifts = groups.get(day) ?? [];
-    shifts.push(item);
-    groups.set(day, shifts);
-  }
-  const sections = [...groups].map(([date, data]) => ({ date, data }));
+  // The report sorts oldest first.
+  const shifts = [...(summary?.shifts ?? [])].reverse();
   const periodLabel = summary && summary.period.start.getDate() !== 1
-    ? `${formatDayLabel(summary.period.start, language)} – ${formatDayLabel(new Date(summary.period.end.getTime() - 1), language)}`
+    ? `${formatDate(summary.period.start)} – ${formatDate(new Date(summary.period.end.getTime() - 1))}`
     : formatMonthLabel(new Date(selected.year, selected.month - 1, 1), language);
 
   return (
     <TextAlignmentProvider>
       <View className="flex-1 bg-background" style={{ direction }}>
-        <SectionList
+        <FlatList
           key={navigation.periodKey}
           className="flex-1"
-          sections={sections}
+          data={shifts}
           extraData={language}
           keyExtractor={(item) => item.shift.id}
-          stickySectionHeadersEnabled={false}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
           contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + BOTTOM_NAVIGATION_CLEARANCE }}
           ListHeaderComponent={
-            <View className="gap-5 px-5 pb-6">
+            <View className="gap-4 px-5 pb-5">
               <Text accessibilityRole="header" className="font-manrope-bold text-3xl">{t("home.shiftListTitle")}</Text>
+              {navigation.isCurrent && clock.openShift ? <ActiveShiftCard openShift={clock.openShift} onToggle={() => void clock.toggle()} /> : null}
+              {navigation.isCurrent ? <NextPlannedShiftCard /> : null}
               <PeriodSwitcher label={periodLabel} onNext={navigation.next} onPrevious={navigation.previous} onReset={navigation.reset} />
             </View>
           }
-          renderSectionHeader={({ section }) => (
-            <View className="border-y border-separator/15 bg-surface-secondary/45 px-5 py-3">
-              <Text accessibilityRole="header" className="font-manrope-semibold text-sm text-muted">
-                {formatDayLabel(fromLocalDateKey(section.date), language)}
-              </Text>
-            </View>
-          )}
           renderItem={({ item }) => <HomeShiftRow item={item} />}
-          ItemSeparatorComponent={() => <View className="mx-5 h-px bg-separator/20" />}
-          SectionSeparatorComponent={() => <View className="h-3" />}
+          ItemSeparatorComponent={() => <View className="h-2.5" />}
           ListEmptyComponent={
             <View className="min-h-64 gap-4 px-6 py-10">
               {!summary && !report.error ? (

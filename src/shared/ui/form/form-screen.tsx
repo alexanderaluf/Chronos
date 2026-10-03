@@ -2,7 +2,7 @@ import { BlurTargetView } from "expo-blur";
 import { router } from "expo-router";
 import { useRef, useState, type PropsWithChildren, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { errorMessage } from "@/localization/errors";
@@ -15,11 +15,14 @@ import { ScreenHeader } from "../controls/screen-header";
 import { FilledIcon, type FilledIconName } from "../filled-icon";
 import { AppAlert } from "../overlay/app-alert";
 import { BottomSafeAreaGradient, TopSafeAreaGradient } from "../safe-area-gradients";
+import { RevealOnFocusProvider, useFocusScroll } from "./form-scroll";
 
 const HEADER_HEIGHT = 56;
 const TOP_CONTROL_HEIGHT = 64;
 const ACTION_DOCK_SPACE = 148;
 const ACTION_DOCK_BOTTOM_GAP = 10;
+/** Save button height + gap + a little air: what the dock covers above the keyboard. */
+const ACTION_DOCK_CLEARANCE = 58 + ACTION_DOCK_BOTTOM_GAP + 16;
 
 export type SecondaryAction = {
   icon: FilledIconName;
@@ -30,7 +33,7 @@ export type SecondaryAction = {
 
 type FormScreenProps = PropsWithChildren<{
   title: string;
-  /** Primary action in the bottom dock. Return normally to close; throw to show the error and stay. */
+  /** Primary action in the bottom dock. Return normally to close; return `false` to stay (e.g. cancelled); throw to show the error and stay. */
   onSave?: () => Promise<unknown> | void;
   saveLabel?: string;
   saveIcon?: FilledIconName;
@@ -73,12 +76,16 @@ export function FormScreen({
   const blurTarget = useRef<View | null>(null);
   const [saving, setSaving] = useState(false);
   const topSpace = insets.top + HEADER_HEIGHT + (topControl ? TOP_CONTROL_HEIGHT : 0) + 8;
+  const scrollRef = useRef<ScrollView>(null);
+  const focusScroll = useFocusScroll({ scrollRef, topInset: topSpace, bottomClearance: onSave ? ACTION_DOCK_CLEARANCE : 16 });
 
   async function save() {
     if (!onSave || saving) return;
+    // Close the keyboard first, so questions and errors after Save are not covered by it.
+    Keyboard.dismiss();
     setSaving(true);
     try {
-      await onSave();
+      if ((await onSave()) === false) return;
       onSaved?.();
       if (closeOnSave && router.canGoBack()) router.back();
     } catch (error) {
@@ -94,21 +101,27 @@ export function FormScreen({
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.fill}>
           <View style={styles.fill}>
             <BlurTargetView ref={blurTarget} style={styles.fill}>
-              <ScrollView
-                automaticallyAdjustKeyboardInsets
-                contentContainerClassName="gap-5 px-5"
-                contentContainerStyle={{
-                  paddingTop: topSpace,
-                  paddingBottom: (onSave ? ACTION_DOCK_SPACE + ACTION_DOCK_BOTTOM_GAP : 40) + insets.bottom,
-                }}
-                contentInsetAdjustmentBehavior="never"
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                {intro ? <Text className="px-1 font-sans text-sm leading-5 text-muted">{intro}</Text> : null}
-                {children}
-                {footer}
-              </ScrollView>
+              <RevealOnFocusProvider value={focusScroll.reveal}>
+                <ScrollView
+                  ref={scrollRef}
+                  {...focusScroll.scrollProps}
+                  automaticallyAdjustKeyboardInsets
+                  contentContainerClassName="gap-5 px-5"
+                  contentContainerStyle={{
+                    paddingTop: topSpace,
+                    paddingBottom: (onSave ? ACTION_DOCK_SPACE + ACTION_DOCK_BOTTOM_GAP : 40) + insets.bottom,
+                  }}
+                  contentInsetAdjustmentBehavior="never"
+                  // Dragging the page closes the keyboard; taps on empty space do too ("handled").
+                  keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {intro ? <Text className="px-1 font-sans text-sm leading-5 text-muted">{intro}</Text> : null}
+                  {children}
+                  {footer}
+                </ScrollView>
+              </RevealOnFocusProvider>
             </BlurTargetView>
 
             <TopSafeAreaGradient />
@@ -154,7 +167,10 @@ export function FormScreen({
                         saving && styles.disabled,
                         pressed && styles.pressed,
                       ]}
-                      onPress={secondaryAction.onPress}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        secondaryAction.onPress();
+                      }}
                     >
                       <FilledIcon name={secondaryAction.icon} size={26} tone="accent-foreground" />
                     </Pressable>

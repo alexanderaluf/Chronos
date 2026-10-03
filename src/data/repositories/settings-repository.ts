@@ -96,18 +96,21 @@ export async function updateSettings(
   database: SQLiteDatabase,
   patch: Partial<AppSettings>,
 ): Promise<AppSettings> {
-  return writeTransaction(database, async (db) => {
-    const next = normalizeSettings({ ...(await getSettings(db)), ...patch });
-    const updatedAt = nowIso();
-    for (const key of Object.keys(patch) as (keyof AppSettings)[]) {
-      await db.runAsync(
-        `INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
-        key,
-        JSON.stringify(next[key]),
-        updatedAt,
-      );
-    }
-    return next;
-  });
+  return writeTransaction(database, (db) => writeSettings(db, patch));
+}
+
+/** `updateSettings` for code already inside `writeTransaction` (transactions cannot nest). */
+export async function writeSettings(db: SQLiteDatabase, patch: Partial<AppSettings>): Promise<AppSettings> {
+  const next = normalizeSettings({ ...(await getSettings(db)), ...patch });
+  const updatedAt = nowIso();
+  for (const key of Object.keys(patch) as (keyof AppSettings)[]) {
+    await db.runAsync(
+      `INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
+      key,
+      JSON.stringify(next[key]),
+      updatedAt,
+    );
+  }
+  return next;
 }

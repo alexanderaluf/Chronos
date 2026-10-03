@@ -8,9 +8,9 @@ import { useDefaultJob, usePaidDay } from "@/data/hooks/queries";
 import { createPaidDay, deletePaidDay, updatePaidDay } from "@/data/repositories/paid-days-repository";
 import type { Job, PaidDay, PaidDayKind } from "@/domain/entities";
 import { fromLocalDateKey, startOfLocalDay, toLocalDateKey } from "@/domain/time/time";
+import { formatDate } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 import { CardRow, InputCard, PickerCard } from "@/shared/ui/form/cards";
-import { formatPickerDate } from "@/shared/ui/form/date-time-field";
 import { HelperText } from "@/shared/ui/form/fields";
 import { GlassSegmentedControl } from "@/shared/ui/glass-segmented-control";
 import { FormScreen } from "@/shared/ui/form/form-screen";
@@ -94,7 +94,7 @@ function PaidDayForm({ job, existing, initialDate }: { job: Job; existing?: Paid
       }
       onSave={save}
     >
-      <PickerCard display={formatPickerDate(day)} label={t("paidDay.date")} mode="date" value={day} onChange={(date) => setDay(startOfLocalDay(date))} />
+      <PickerCard display={formatDate(day)} label={t("paidDay.date")} mode="date" value={day} onChange={(date) => setDay(startOfLocalDay(date))} />
       <CardRow>
         <View className="flex-1">
           <InputCard

@@ -6,7 +6,8 @@ import { usePlannedShifts, useSettings } from "@/data/hooks/queries";
 import { clearPlannedShift, savePlannedShift } from "@/data/repositories/planned-shifts-repository";
 import type { PlannedShift } from "@/domain/entities";
 import { addLocalDays, startOfLocalWeek, toLocalDateKey } from "@/domain/time/time";
-import { getAppLocale } from "@/shared/lib/format";
+import { useAppLocalization } from "@/localization/localization-provider";
+import { formatDayLabel } from "@/shared/lib/format";
 import { Text } from "@/shared/ui/app-text";
 import { TimeField } from "@/shared/ui/form/date-time-field";
 import { AddRow, FormSection } from "@/shared/ui/form/fields";
@@ -21,6 +22,7 @@ import { AppAlert } from "@/shared/ui/overlay/app-alert";
  */
 export function WeeklyScheduleScreen() {
   const { t } = useTranslation();
+  const { language } = useAppLocalization();
   const database = useSQLiteContext();
   const settings = useSettings();
   const weekStart = startOfLocalWeek(new Date(), settings.data?.weekStartDay ?? 0);
@@ -46,7 +48,7 @@ export function WeeklyScheduleScreen() {
       {days.map((day) => {
         const date = toLocalDateKey(day);
         const plan = byDate.get(date);
-        const title = day.toLocaleDateString(getAppLocale(), { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+        const title = formatDayLabel(day, language);
         return (
           <FormSection key={date} title={title}>
             {plan ? (

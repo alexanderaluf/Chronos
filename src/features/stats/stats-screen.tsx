@@ -4,10 +4,10 @@ import { View } from "react-native";
 
 import { usePeriodReport, useYearReport } from "@/data/hooks/queries";
 import { useAppLocalization } from "@/localization/localization-provider";
-import { fromLocalDateKey, parsePeriodKey, toLocalDateKey } from "@/domain/time/time";
+import { parsePeriodKey } from "@/domain/time/time";
 import { usePeriodNavigation } from "@/features/shifts/hooks/use-period-key";
 import { usePrimaryCurrency } from "@/features/shifts/hooks/use-primary-currency";
-import { formatDayLabel, formatHours, formatStatementMoney as formatMoney, formatMonthLabel, formatNumber } from "@/shared/lib/format";
+import { formatDate, formatHours, formatStatementMoney as formatMoney, formatMonthLabel, formatNumber } from "@/shared/lib/format";
 import { Text, TextAlignmentProvider } from "@/shared/ui/app-text";
 import { FilledIcon } from "@/shared/ui/filled-icon";
 import { FormSection } from "@/shared/ui/form/fields";
@@ -35,10 +35,7 @@ export function StatsScreen() {
   const periodLabel = summary
     ? summary.period.start.getDate() === 1
       ? formatMonthLabel(summary.period.start, language)
-      : `${formatDayLabel(summary.period.start, language)} – ${formatDayLabel(
-          fromLocalDateKey(toLocalDateKey(new Date(summary.period.end.getTime() - 1))),
-          language,
-        )}`
+      : `${formatDate(summary.period.start)} – ${formatDate(new Date(summary.period.end.getTime() - 1))}`
     : "";
 
   return (

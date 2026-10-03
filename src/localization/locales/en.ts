@@ -17,7 +17,7 @@ export const en = {
     chooseCity: "Choose your work city",
     start: "Holiday pay starts",
     end: "Holiday pay ends next day",
-    policy: "Holiday pay is fixed at 150%, in Israel time (Asia/Jerusalem). Changes recalculate existing shifts. Existing overtime and rest-day rates are preserved; overlapping premiums use the higher rate.",
+    policy: "Holiday pay is fixed at 150%, in Israel time (Asia/Jerusalem). When you save a change, choose whether this month's shifts are updated or only new shifts use it. Existing overtime and rest-day rates are preserved; overlapping premiums use the higher rate.",
     breakPolicy: "Breaks have no recorded time. For this estimate, unpaid break minutes are deducted from the end of the shift.",
     breakdown: "Shift pay breakdown",
     regular: "Regular / overtime",
@@ -47,11 +47,17 @@ export const en = {
     shortMonths: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
     shortWeekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     monthYear: "{{month}} {{year}}",
-    dayLabel: "{{weekday}}, {{day}} {{month}}",
+    dayLabel: "{{weekday}}, {{date}}",
   },
   inputs: {
     placeholder: "Enter {{field}}",
     editHint: "Tap to edit",
+  },
+  shiftUpdateScope: {
+    title: "Apply the new settings",
+    message: "Which shifts should use the new values? Shifts from earlier months never change.",
+    currentPeriod: "All shifts this month",
+    newShiftsOnly: "Only new shifts",
   },
   common: {
     ok: "OK",
@@ -123,6 +129,16 @@ export const en = {
     shiftListError: "Couldn't load your shifts. Please try again.",
     nightShift: "Night shift",
     overtime: "Overtime · {{hours}}",
+    row: {
+      night: "Night",
+      overtime: "Overtime {{hours}}",
+      restDay: "Rest day",
+      holiday: "Holiday {{hours}}",
+      break: "Break {{minutes}} min",
+      bonus: "Bonus {{amount}}",
+      tips: "Tips {{amount}}",
+      note: "Note: {{note}}",
+    },
     greetings: {
       night: "Good night",
       morning: "Good morning",
@@ -412,7 +428,7 @@ export const en = {
   salary: {
     title: "Salary settings",
     intro:
-      "Your hourly wage and bonus are global: every new shift uses them, and you can change them on a single shift. Changes affect new shifts only — past shifts keep the values they were recorded with.",
+      "Your hourly wage and bonus are global: every new shift uses them, and you can change them on a single shift. When you save a change, choose whether this month's shifts are updated or only new shifts use it. Earlier months keep the values they were recorded with.",
     jobName: "Job name",
     salaryType: "Salary type",
     hourly: "Hourly",
