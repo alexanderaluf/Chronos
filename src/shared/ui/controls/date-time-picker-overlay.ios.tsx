@@ -1,7 +1,7 @@
 import { DatePicker, Host, Popover, Spacer, VStack } from "@expo/ui/swift-ui";
 import { datePickerStyle, environment, frame, padding, scaleEffect, tint } from "@expo/ui/swift-ui/modifiers";
 import { useEffect, useRef, useState } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions, type ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppLocalization } from "@/localization/localization-provider";
@@ -41,7 +41,7 @@ export function DateTimePickerOverlay({
 }: DateTimePickerOverlayProps) {
   const theme = useAppThemeColors();
   const { language } = useAppLocalization();
-  const anchorRef = useRef<View>(null);
+  const anchorRef = useRef<ViewInstance>(null);
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const layout = PICKER_LAYOUT[mode];

@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, TextInput, View, type TextInputProps } from "react-native";
+import { Pressable, TextInput, type TextInputInstance, type TextInputProps, type ViewInstance } from "react-native";
 
 import { useAppLocalization } from "@/localization/localization-provider";
 import { formatNumber } from "@/shared/lib/format";
@@ -25,8 +25,8 @@ export function EditableInput({
   const { t } = useTranslation();
   const { direction, isRTL, language } = useAppLocalization();
   const { accent, border, muted, surfaceSecondary } = useAppThemeColors();
-  const input = useRef<TextInput>(null);
-  const container = useRef<View>(null);
+  const input = useRef<TextInputInstance>(null);
+  const container = useRef<ViewInstance>(null);
   const reveal = useRevealOnFocus();
   const [focused, setFocused] = useState(false);
   const inputDirection = numeric || props.keyboardType === "email-address" ? "ltr" : direction;

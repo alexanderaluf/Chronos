@@ -1,7 +1,7 @@
 import { BlurView } from "expo-blur";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View, type ViewInstance } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
@@ -20,7 +20,7 @@ export const BOTTOM_NAVIGATION_CLEARANCE = 106;
 type BottomNavigationProps = {
   activeItem: TabId;
   action: TabAction;
-  blurTarget: RefObject<View | null>;
+  blurTarget: RefObject<ViewInstance | null>;
   onChange: (item: TabId) => void;
   onActionPress: () => void;
 };

@@ -1,7 +1,7 @@
 import { BlurTargetView } from "expo-blur";
 import { Slot, usePathname, useRouter } from "expo-router";
 import { useRef } from "react";
-import { View } from "react-native";
+import { View, type ViewInstance } from "react-native";
 
 import { useAppThemeColors } from "@/shared/theme/app-theme";
 
@@ -16,7 +16,7 @@ export type TabActions = Record<TabId, TabAction & { onPress: () => void }>;
  * What the action button does is decided by the caller (`actions`).
  */
 export function TabShell({ actions }: { actions: TabActions }) {
-  const blurTargetRef = useRef<View | null>(null);
+  const blurTargetRef = useRef<ViewInstance | null>(null);
   const theme = useAppThemeColors();
   const pathname = usePathname();
   const router = useRouter();

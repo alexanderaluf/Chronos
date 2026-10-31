@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useRef, type RefObject } from "react";
-import { Keyboard, Platform, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollView, type View } from "react-native";
+import { Keyboard, Platform, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance, type ViewInstance } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 
 /** Something on screen that can report its window frame (a field's container view). */
-type Measurable = Pick<View, "measureInWindow">;
+type Measurable = Pick<ViewInstance, "measureInWindow">;
 
 const RevealContext = createContext<(target: Measurable | null) => void>(() => undefined);
 
@@ -28,7 +28,7 @@ const SETTLE_DELAY_MS = Platform.OS === "android" ? 80 : 0;
  * visible area and the keyboard or Save dock. Animated unless Reduce Motion is on.
  */
 export function useFocusScroll({ scrollRef, topInset, bottomClearance }: {
-  scrollRef: RefObject<ScrollView | null>;
+  scrollRef: RefObject<ScrollViewInstance | null>;
   /** Height covered by the floating header (and pinned control) at the top. */
   topInset: number;
   /** Height covered by the floating Save dock above the keyboard / screen bottom. */

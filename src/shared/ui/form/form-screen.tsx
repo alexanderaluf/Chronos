@@ -2,7 +2,7 @@ import { BlurTargetView } from "expo-blur";
 import { router } from "expo-router";
 import { useRef, useState, type PropsWithChildren, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance, type ViewInstance } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { errorMessage } from "@/localization/errors";
@@ -73,10 +73,10 @@ export function FormScreen({
   const insets = useSafeAreaInsets();
   const theme = useAppThemeColors();
   const primaryLabel = saveLabel ?? t("common.save");
-  const blurTarget = useRef<View | null>(null);
+  const blurTarget = useRef<ViewInstance | null>(null);
   const [saving, setSaving] = useState(false);
   const topSpace = insets.top + HEADER_HEIGHT + (topControl ? TOP_CONTROL_HEIGHT : 0) + 8;
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const focusScroll = useFocusScroll({ scrollRef, topInset: topSpace, bottomClearance: onSave ? ACTION_DOCK_CLEARANCE : 16 });
 
   async function save() {

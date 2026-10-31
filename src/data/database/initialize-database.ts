@@ -30,7 +30,7 @@ async function saveRecoveryCopy(database: SQLiteDatabase, fromVersion: number) {
   if (copy.exists) return;
   const bytes = await database.serializeAsync();
   copy.create();
-  copy.write(bytes);
+  await copy.write(bytes);
   if (copy.size !== bytes.length) {
     throw new Error("The recovery copy could not be saved, so the upgrade was stopped.");
   }

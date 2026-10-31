@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import type { RefObject } from "react";
-import { Keyboard, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Keyboard, Platform, Pressable, StyleSheet, View, type ViewInstance } from "react-native";
 
 import { colorWithAlpha, useAppThemeColors } from "@/shared/theme/app-theme";
 import { useAppLocalization } from "@/localization/localization-provider";
@@ -16,7 +16,7 @@ type GlassSegmentedControlProps<Value extends string> = {
   onChange: (value: Value) => void;
   accessibilityLabel?: string;
   /** Content behind the control, for the frosted look when it floats over a page. */
-  blurTarget?: RefObject<View | null>;
+  blurTarget?: RefObject<ViewInstance | null>;
   minHeight?: number;
 };
 
