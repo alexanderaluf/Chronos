@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
-import { useDefaultJob, usePaidDay } from "@/data/hooks/queries";
+import { useActiveJob, usePaidDay } from "@/data/hooks/queries";
 import { createPaidDay, deletePaidDay, updatePaidDay } from "@/data/repositories/paid-days-repository";
 import type { Job, PaidDay, PaidDayKind } from "@/domain/entities";
 import { fromLocalDateKey, startOfLocalDay, toLocalDateKey } from "@/domain/time/time";
@@ -123,7 +123,7 @@ function PaidDayForm({ job, existing, initialDate }: { job: Job; existing?: Paid
 
 /** Route: /paid-days/new?date=YYYY-MM-DD */
 export function NewPaidDayScreen({ date }: { date?: string }) {
-  const job = useDefaultJob();
+  const job = useActiveJob();
   if (!job.data) {
     return (
       <LoadingScreen
@@ -138,7 +138,7 @@ export function NewPaidDayScreen({ date }: { date?: string }) {
 /** Route: /paid-days/[id] */
 export function EditPaidDayScreen({ id }: { id: string }) {
   const paidDay = usePaidDay(id);
-  const job = useDefaultJob();
+  const job = useActiveJob();
   return (
     <QueryGate query={paidDay} title={i18n.t("paidDay.editTitle")}>
       {(loaded) => (job.data ? <PaidDayForm existing={loaded} job={job.data} /> : <LoadingScreen title={i18n.t("paidDay.editTitle")} />)}

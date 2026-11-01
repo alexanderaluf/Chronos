@@ -3,6 +3,8 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import type { AdjustmentKind, PayAdjustment } from "@/domain/entities";
 import { parsePeriodKey, type PeriodKey } from "@/domain/time/time";
 
+import { getActiveJobId } from "./settings-repository";
+
 import {
   DataValidationError,
   fromSqlBoolean,
@@ -52,10 +54,12 @@ function validate(input: AdjustmentInput) {
   }
 }
 
-export async function listAdjustmentsForPeriod(database: SQLiteDatabase, periodKey: PeriodKey) {
+/** One month's one-off items; pass `jobId` for one profile only. */
+export async function listAdjustmentsForPeriod(database: SQLiteDatabase, periodKey: PeriodKey, jobId?: string | null) {
   const rows = await database.getAllAsync<AdjustmentRow>(
-    "SELECT * FROM pay_adjustments WHERE period_key = ? AND deleted_at IS NULL ORDER BY created_at",
+    `SELECT * FROM pay_adjustments WHERE period_key = ? AND deleted_at IS NULL ${jobId ? "AND job_id = ?" : ""} ORDER BY created_at`,
     periodKey,
+    ...(jobId ? [jobId] : []),
   );
   return rows.map(toAdjustment);
 }
@@ -65,16 +69,17 @@ export async function getAdjustment(database: SQLiteDatabase, id: string): Promi
   return row ? toAdjustment(row) : null;
 }
 
+/** With `jobId: null` the item belongs to the active profile. */
 export async function createAdjustment(database: SQLiteDatabase, input: AdjustmentInput): Promise<PayAdjustment> {
   validate(input);
   const id = newId();
   const now = nowIso();
-  await writeTransaction(database, (db) =>
+  await writeTransaction(database, async (db) =>
     db.runAsync(
       `INSERT INTO pay_adjustments (id, job_id, period_key, kind, label, amount_minor, is_taxable, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
-      input.jobId,
+      input.jobId ?? (await getActiveJobId(db)),
       input.periodKey,
       input.kind,
       input.label.trim(),

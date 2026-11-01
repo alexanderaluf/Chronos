@@ -4,6 +4,7 @@ import type { PayComponent, PayComponentCalculation, PayComponentKind } from "@/
 import { PAY_COMPONENT_CALCULATIONS } from "@/domain/pay/pay-components";
 
 import { DataValidationError, fromSqlBoolean, newId, nowIso, toSqlBoolean, writeTransaction } from "../database/sql";
+import { getActiveJobId } from "./settings-repository";
 
 /** Recurring monthly additions (travel, allowances) and deductions (pension, study fund). */
 
@@ -42,7 +43,10 @@ function toComponent(row: ComponentRow): PayComponent {
 export type PayComponentInput = Pick<
   PayComponent,
   "kind" | "name" | "calculation" | "amount" | "rateBp" | "isTaxable" | "isActive"
->;
+> & {
+  /** The profile it belongs to; left out, the active profile. */
+  jobId?: string;
+};
 
 function validate(input: PayComponentInput) {
   if (!input.name.trim()) throw new DataValidationError("Give this item a name.", "component/name");
@@ -54,16 +58,17 @@ function validate(input: PayComponentInput) {
   }
 }
 
-/** All non-deleted components; pass `kind` to get only additions or deductions. */
-export async function listPayComponents(database: SQLiteDatabase, kind?: PayComponentKind): Promise<PayComponent[]> {
-  const rows = kind
-    ? await database.getAllAsync<ComponentRow>(
-        "SELECT * FROM pay_components WHERE deleted_at IS NULL AND kind = ? ORDER BY sort_order, created_at",
-        kind,
-      )
-    : await database.getAllAsync<ComponentRow>(
-        "SELECT * FROM pay_components WHERE deleted_at IS NULL ORDER BY kind, sort_order, created_at",
-      );
+/**
+ * Non-deleted components; pass `kind` to get only additions or deductions,
+ * and `jobId` for one profile only.
+ */
+export async function listPayComponents(database: SQLiteDatabase, kind?: PayComponentKind, jobId?: string | null): Promise<PayComponent[]> {
+  const rows = await database.getAllAsync<ComponentRow>(
+    `SELECT * FROM pay_components WHERE deleted_at IS NULL ${kind ? "AND kind = ?" : ""} ${jobId ? "AND job_id = ?" : ""}
+     ORDER BY kind, sort_order, created_at`,
+    ...(kind ? [kind] : []),
+    ...(jobId ? [jobId] : []),
+  );
   return rows.map(toComponent);
 }
 
@@ -73,31 +78,36 @@ export async function getPayComponent(database: SQLiteDatabase, id: string): Pro
 }
 
 export async function createPayComponent(database: SQLiteDatabase, input: PayComponentInput): Promise<string> {
+  return writeTransaction(database, (db) => writePayComponent(db, input));
+}
+
+/** `createPayComponent` for code already inside `writeTransaction` (transactions cannot nest). */
+export async function writePayComponent(db: SQLiteDatabase, input: PayComponentInput): Promise<string> {
   validate(input);
   const id = newId();
-  await writeTransaction(database, async (db) => {
-    const now = nowIso();
-    const order = await db.getFirstAsync<{ next: number }>(
-      "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM pay_components WHERE kind = ?",
-      input.kind,
-    );
-    await db.runAsync(
-      `INSERT INTO pay_components (id, kind, name, calculation, amount_minor, rate_bp, is_taxable, is_active,
-         sort_order, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id,
-      input.kind,
-      input.name.trim(),
-      input.calculation,
-      input.amount,
-      input.rateBp,
-      toSqlBoolean(input.isTaxable),
-      toSqlBoolean(input.isActive),
-      order?.next ?? 0,
-      now,
-      now,
-    );
-  });
+  const now = nowIso();
+  const jobId = input.jobId ?? (await getActiveJobId(db));
+  const order = await db.getFirstAsync<{ next: number }>(
+    "SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM pay_components WHERE kind = ?",
+    input.kind,
+  );
+  await db.runAsync(
+    `INSERT INTO pay_components (id, job_id, kind, name, calculation, amount_minor, rate_bp, is_taxable, is_active,
+       sort_order, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    jobId,
+    input.kind,
+    input.name.trim(),
+    input.calculation,
+    input.amount,
+    input.rateBp,
+    toSqlBoolean(input.isTaxable),
+    toSqlBoolean(input.isActive),
+    order?.next ?? 0,
+    now,
+    now,
+  );
   return id;
 }
 

@@ -166,17 +166,23 @@ export type EmployerInfo = {
   notes: string;
 };
 
+/**
+ * App settings. Each job is a profile: `employer`, `payPeriodStartDay`,
+ * `holidayPay` and `taxStatus` belong to the active profile; the rest is
+ * shared by every profile.
+ */
 export type AppSettings = {
+  /** Active profile. */
   holidayPay: import("./holidays/holiday-settings").HolidayPaySettings;
   /** null = follow the device language (English if it is not supported). */
   appLanguage: AppLanguage | null;
   themeMode: ThemeMode;
   accentColor: AccentColorId;
-  /** Day of month a pay period starts (1–28). */
+  /** Active profile. Day of month a pay period starts (1–28). */
   payPeriodStartDay: number;
   /** 0 = Sunday. */
   weekStartDay: number;
-  /** Job used for new shifts and when clocking in. */
+  /** The active profile: the job whose shifts, pay and settings the app shows, used for new shifts and clock-ins. */
   defaultJobId: string | null;
   onboardingCompletedAt: string | null;
   /** Round entered and clocked times to this many minutes (0 = no rounding). */
@@ -185,6 +191,8 @@ export type AppSettings = {
   showShiftSummaryAfterSave: boolean;
   calendarDirection: CalendarDirection;
   personalInfo: PersonalInfo;
+  /** Active profile. */
   taxStatus: TaxStatus;
+  /** Active profile. */
   employer: EmployerInfo;
 };

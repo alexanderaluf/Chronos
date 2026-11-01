@@ -103,18 +103,20 @@ export async function getOpenShift(database: SQLiteDatabase): Promise<Shift | nu
   return row ? toShift(row) : null;
 }
 
-/** Shifts that START in [from, to), oldest first. Includes a running shift. */
+/** Shifts that START in [from, to), oldest first. Includes a running shift. Pass `jobId` for one profile only. */
 export async function listShiftsStartingBetween(
   database: SQLiteDatabase,
   from: Date,
   to: Date,
+  jobId?: string | null,
 ): Promise<Shift[]> {
   const rows = await database.getAllAsync<ShiftRow>(
     `SELECT * FROM shifts
-     WHERE deleted_at IS NULL AND start_at >= ? AND start_at < ?
+     WHERE deleted_at IS NULL AND start_at >= ? AND start_at < ? ${jobId ? "AND job_id = ?" : ""}
      ORDER BY start_at`,
     toIso(from),
     toIso(to),
+    ...(jobId ? [jobId] : []),
   );
   return rows.map(toShift);
 }
@@ -185,7 +187,8 @@ export async function createShift(database: SQLiteDatabase, input: ShiftInput): 
       throw new DataValidationError("You are already clocked in.", "shift/already-open");
     }
     await assertNoOverlap(db, input.startAt, input.endAt);
-    const settings = await getSettings(db);
+    // The shift's own job's holiday settings, even when another profile is active.
+    const settings = await getSettings(db, input.jobId);
     const now = nowIso();
     await db.runAsync(
       `INSERT INTO shifts (id, job_id, start_at, end_at, time_zone, break_minutes, hourly_rate_minor,
@@ -347,8 +350,9 @@ export async function saveHolidayPaySettings(
     if (scope === "currentPeriod") {
       const [from, to] = await currentPeriodRange(db, now);
       await db.runAsync(
-        "UPDATE shifts SET holiday_pay_json = ?, updated_at = ? WHERE deleted_at IS NULL AND start_at >= ? AND start_at < ?",
-        JSON.stringify(saved), nowIso(), from, to,
+        // Holiday settings belong to the active profile, so only its shifts take the change.
+        "UPDATE shifts SET holiday_pay_json = ?, updated_at = ? WHERE deleted_at IS NULL AND job_id = ? AND start_at >= ? AND start_at < ?",
+        JSON.stringify(saved), nowIso(), (await getSettings(db)).defaultJobId ?? "", from, to,
       );
     }
     return saved;

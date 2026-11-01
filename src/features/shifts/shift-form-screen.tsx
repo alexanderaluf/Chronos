@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 
-import { useDefaultJob, useJob, useSettings, useShift, useShiftTemplate, useShiftTemplates } from "@/data/hooks/queries";
+import { useActiveJob, useJob, useSettings, useShift, useShiftTemplate, useShiftTemplates } from "@/data/hooks/queries";
 import { ensureHolidayDataForRange } from "@/data/holidays/holiday-service";
 import { useHolidayPremiums } from "@/data/hooks/use-holiday-premiums";
 import { HolidayPayNotice } from "@/shared/ui/holiday-pay-notice";
@@ -451,7 +451,7 @@ function valuesForExistingShift(shift: Shift, job: Job): FormValues {
 
 /** Route: /shifts/new?date=YYYY-MM-DD&templateId=… */
 export function NewShiftScreen({ date, templateId }: { date?: string; templateId?: string }) {
-  const job = useDefaultJob();
+  const job = useActiveJob();
   const settings = useSettings();
   const template = useShiftTemplate(templateId ?? "");
 

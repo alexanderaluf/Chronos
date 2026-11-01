@@ -1,7 +1,7 @@
 import { router, type Href } from "expo-router";
 import { useTranslation } from "react-i18next";
 
-import { useDefaultJob, usePayComponents, useSettings, useShiftTemplates } from "@/data/hooks/queries";
+import { useActiveJob, usePayComponents, useProfiles, useSettings, useShiftTemplates } from "@/data/hooks/queries";
 import { formatStatementMoney } from "@/shared/lib/format";
 import { Text, TextAlignmentProvider } from "@/shared/ui/app-text";
 import { useAppLocalization } from "@/localization/localization-provider";
@@ -15,11 +15,12 @@ type MenuItem = { icon: FilledIconName; color: string; label: string; href: Href
 export function SettingsScreen() {
   const { t } = useTranslation();
   const { language } = useAppLocalization();
-  const job = useDefaultJob();
+  const job = useActiveJob();
   const settings = useSettings();
   const additions = usePayComponents("addition");
   const deductions = usePayComponents("deduction");
   const templates = useShiftTemplates();
+  const profiles = useProfiles();
 
   const salaryValue = job.data
     ? job.data.payType === "hourly"
@@ -32,6 +33,7 @@ export function SettingsScreen() {
     {
       title: t("settingsMenu.groups.salary"),
       items: [
+        { icon: "work", color: "#ca79da", label: t("profiles.manageTitle"), href: "/profile/manage", value: count(profiles.data), hint: t("profiles.switchHint") },
         { icon: "person", color: "#a8b6f3", label: t("settingsMenu.personal"), href: "/settings/personal", hint: t("settingsMenu.personalHint") },
         { icon: "payments", color: "#9bd59b", label: t("settingsMenu.salary"), href: "/settings/salary", value: salaryValue },
         { icon: "calendar", color: "#ffc975", label: t("holidayPay.title"), href: "/settings/holiday-pay" },
@@ -40,7 +42,7 @@ export function SettingsScreen() {
         { icon: "trending-down", color: "#ff9c87", label: t("settingsMenu.deductions"), href: "/settings/deductions", value: count(deductions.data) },
         { icon: "receipt", color: "#79bced", label: t("settingsMenu.taxes"), href: "/settings/taxes" },
         { icon: "repeat", color: "#77c8bd", label: t("settingsMenu.templates"), href: "/settings/templates", value: count(templates.data), hint: t("templates.selectionHint") },
-        { icon: "work", color: "#ca79da", label: t("settingsMenu.employer"), href: "/settings/employer", value: settings.data?.employer.name || undefined },
+        { icon: "badge", color: "#ca79da", label: t("settingsMenu.employer"), href: "/settings/employer", value: settings.data?.employer.name || undefined },
       ],
     },
     {
@@ -60,9 +62,6 @@ export function SettingsScreen() {
   return (
     <TextAlignmentProvider>
       <TabPage>
-        <Text accessibilityRole="header" className="pt-3 font-manrope-bold text-2xl text-foreground">
-          {t("settingsMenu.title")}
-        </Text>
         {groups.map((group) => (
           <FormSection key={group.title} title={group.title}>
             {group.items.map((item) => (

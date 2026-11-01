@@ -13,6 +13,7 @@ import { componentAmount } from "./pay/pay-components";
 import { ISRAEL_DEFAULT_PAY_RULES, normalizePayRules } from "./pay/pay-rules";
 import { computePayslip } from "./pay/payslip";
 import { summarizePeriod } from "./pay/period-summary";
+import { globalSalaryEstimate, ISRAEL_2026_PAYROLL_RULES, pensionDepositCredit } from "./pay/global-salary";
 import { quickSalaryEstimate } from "./pay/quick-calculator";
 import { DEFAULT_SALARY_AGREEMENT, normalizeSalaryAgreement } from "./pay/salary-agreement";
 import { calculateShiftPay, type ShiftPayInput } from "./pay/shift-pay";
@@ -393,6 +394,74 @@ describe("period summary", () => {
   });
 });
 
+
+describe("global salary calculator", () => {
+  const base = {
+    baseSalary: 1_500_000,
+    globalOvertime: 0,
+    travel: 0,
+    convalescence: 0,
+    otherAdditions: 0,
+    taxableBenefit: 0,
+    pensionEmployeeBp: 600,
+    pensionEmployerBp: 650,
+    severanceBp: 600,
+    studyFundEmployeeBp: 0,
+    studyFundEmployerBp: 0,
+    creditPointsHundredths: 225,
+    taxRules: ISRAEL_2026_TAX_RULES,
+    taxStatus: DEFAULT_TAX_STATUS,
+    payrollRules: ISRAEL_2026_PAYROLL_RULES,
+  };
+
+  it("gives the 35% pension credit on 7% of salary up to ₪9,700", () => {
+    // 7% of ₪9,700 = ₪679 counted; 35% of it = ₪237.65.
+    assert.equal(pensionDepositCredit(1_500_000, 90_000, ISRAEL_2026_PAYROLL_RULES), 23_765);
+    // A smaller deposit counts as it is.
+    assert.equal(pensionDepositCredit(500_000, 30_000, ISRAEL_2026_PAYROLL_RULES), 10_500);
+  });
+
+  it("takes tax, insurance and the employee's pension off a ₪15,000 salary", () => {
+    const estimate = globalSalaryEstimate(base);
+    const plain = calculateMandatoryDeductions({ taxableIncome: 1_500_000, creditPointsHundredths: 225, rules: ISRAEL_2026_TAX_RULES, status: DEFAULT_TAX_STATUS });
+    assert.equal(estimate.payslip.gross, 1_500_000);
+    assert.equal(estimate.pensionCredit, 23_765);
+    assert.equal(estimate.payslip.mandatory.incomeTax, plain.incomeTax - 23_765);
+    assert.equal(estimate.payslip.mandatory.nationalInsurance, plain.nationalInsurance);
+    assert.equal(estimate.payslip.voluntaryLines.find((line) => line.key === "pensionFund")?.amount, 90_000);
+    assert.equal(estimate.payslip.net, 1_500_000 - estimate.payslip.mandatory.total - 90_000);
+    // Employer NI: 4.51% up to ₪7,703, 7.6% above.
+    assert.equal(estimate.employer.nationalInsurance, 34_741 + 55_457);
+    assert.equal(estimate.employer.totalCost, 1_500_000 + 97_500 + 90_000 + 90_198);
+    assert.equal(estimate.savings.pension, 90_000 + 97_500 + 90_000);
+  });
+
+  it("taxes the employer's study-fund deposit above ₪15,712 and counts every addition", () => {
+    const estimate = globalSalaryEstimate({
+      ...base,
+      baseSalary: 2_000_000,
+      globalOvertime: 300_000,
+      travel: 50_000,
+      convalescence: 225_750,
+      taxableBenefit: 100_000,
+      studyFundEmployeeBp: 250,
+      studyFundEmployerBp: 750,
+    });
+    assert.equal(estimate.payslip.gross, 2_000_000 + 300_000 + 50_000 + 225_750);
+    // 7.5% of (₪20,000 − ₪15,712)
+    assert.equal(estimate.studyFundTaxableExcess, 32_160);
+    assert.equal(estimate.payslip.taxableIncome, estimate.payslip.gross + 100_000 + 32_160);
+    assert.equal(estimate.payslip.voluntaryLines.find((line) => line.key === "studyFund")?.amount, 50_000);
+    assert.equal(estimate.savings.studyFund, 50_000 + 150_000);
+    // Pension and the study fund are on the base salary only.
+    assert.equal(estimate.employer.pension, 130_000);
+  });
+
+  it("treats a self-employed profile as an employee", () => {
+    const estimate = globalSalaryEstimate({ ...base, taxStatus: { ...DEFAULT_TAX_STATUS, employmentType: "selfEmployed" } });
+    assert.equal(estimate.payslip.mandatory.nationalInsurance, globalSalaryEstimate(base).payslip.mandatory.nationalInsurance);
+  });
+});
 
 describe("holiday windows and shift pay", () => {
   const wall = (day: string, hour: number, minute = 0) => israelWallTime(day, hour * 60 + minute);

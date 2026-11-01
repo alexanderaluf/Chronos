@@ -1,6 +1,6 @@
 import { useSQLiteContext } from "expo-sqlite";
 
-import { useDefaultJob, useOpenShift, useSettings } from "@/data/hooks/queries";
+import { useActiveJob, useOpenShift, useSettings } from "@/data/hooks/queries";
 import { clockIn, clockOut } from "@/data/repositories/shifts-repository";
 import { roundToStep } from "@/domain/time/time";
 import { getDeviceTimeZone } from "@/shared/lib/format";
@@ -13,7 +13,7 @@ export function useClockInOut() {
   const database = useSQLiteContext();
   const openShift = useOpenShift();
   const settings = useSettings();
-  const job = useDefaultJob();
+  const job = useActiveJob();
 
   async function toggle() {
     const step = settings.data?.roundingMinutes ?? 0;

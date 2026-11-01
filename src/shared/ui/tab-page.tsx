@@ -5,8 +5,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BOTTOM_NAVIGATION_CLEARANCE } from "@/shared/navigation/bottom-navigation";
 
-import { TopSafeAreaGradient } from "./safe-area-gradients";
-
 const INITIAL_DELAY = 45;
 const STAGGER_DELAY = 85;
 const REVEAL_DURATION = 420;
@@ -26,7 +24,7 @@ export function TabPage({ children }: PropsWithChildren) {
         className="flex-1"
         contentContainerClassName="gap-6 px-5"
         contentContainerStyle={{
-          paddingTop: insets.top + 12,
+          paddingTop: insets.top + 8,
           paddingBottom: insets.bottom + BOTTOM_NAVIGATION_CLEARANCE,
         }}
         contentInsetAdjustmentBehavior="never"
@@ -45,7 +43,6 @@ export function TabPage({ children }: PropsWithChildren) {
           </Animated.View>
         ))}
       </ScrollView>
-      <TopSafeAreaGradient headerHidden />
     </View>
   );
 }

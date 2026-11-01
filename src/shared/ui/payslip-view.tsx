@@ -69,7 +69,10 @@ export function PayslipView({ payslip, currency, grouped = false }: { payslip: P
           label={payslipLineLabel(line)}
           note={
             line.key === "incomeTax"
-              ? t("payslip.creditPoints", { points: formatNumber(payslip.creditPoints.totalHundredths / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })
+              ? [
+                  t("payslip.creditPoints", { points: formatNumber(payslip.creditPoints.totalHundredths / 100, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }),
+                  payslip.mandatory.pensionCredit > 0 ? t("payslip.pensionCredit", { amount: formatStatementMoney(payslip.mandatory.pensionCredit, currency) }) : null,
+                ].filter(Boolean).join(" · ")
               : undefined
           }
           tone="deduction"

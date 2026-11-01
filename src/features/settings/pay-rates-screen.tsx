@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 
-import { useDefaultJob } from "@/data/hooks/queries";
+import { useActiveJob } from "@/data/hooks/queries";
 import { updateJob } from "@/data/repositories/jobs-repository";
 import type { Job } from "@/domain/entities";
 import { DEFAULT_WEEKLY_REST_WINDOW, ISRAEL_DEFAULT_PAY_RULES, type PayRules } from "@/domain/pay/pay-rules";
@@ -191,6 +191,6 @@ function PayRatesForm({ job }: { job: Job }) {
 /** Route: /settings/rates */
 export function PayRatesScreen() {
   const { t } = useTranslation();
-  const job = useDefaultJob();
+  const job = useActiveJob();
   return <QueryGate query={job} title={t("rates.title")}>{(data) => <PayRatesForm job={data} />}</QueryGate>;
 }

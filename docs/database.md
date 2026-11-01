@@ -14,17 +14,17 @@ All shift, salary and settings data is stored in one SQLite file on the device (
 
 If any step fails, the root `ErrorBoundary` shows the message. No data is deleted.
 
-## Tables (schema v6)
+## Tables (schema v8)
 
 | Table             | Holds                                         | Notes |
 | ----------------- | --------------------------------------------- | ----- |
 | `holiday_year_cache` | Normalized Hebcal events and candle-lighting/nightfall times | One row per year and selected city, or dates-only in custom mode. Fresh for 30 days, with stale-cache fallback offline. Added in v4. |
-| `settings`        | One row per preference (`key`, `value_json`)  | Includes personal info, tax status and employer details. New settings need no migration. Validated by `normalizeSettings`. |
-| `jobs`            | The job and how it pays                        | `pay_type` is hourly or monthly. `hourly_rate_minor` and `default_shift_bonus_minor` (v3) are the **global** rate and bonus copied onto new shifts. `pay_rules_json` holds overtime / night / rest-day rules (validated by `normalizePayRules`). Archived, never deleted. `travel_per_day_minor` is deprecated since v2. |
+| `settings`        | One row per preference (`key`, `value_json`)  | Shared preferences and personal info. New settings need no migration. Validated by `normalizeSettings`. `defaultJobId` is the active profile. |
+| `jobs`            | The job and how it pays                        | `pay_type` is hourly or monthly. `hourly_rate_minor` and `default_shift_bonus_minor` (v3) are the **global** rate and bonus copied onto new shifts. `pay_rules_json` holds overtime / night / rest-day rules (validated by `normalizePayRules`). Each job is a profile: `profile_settings_json` (v8) holds its `employer`, `payPeriodStartDay`, `holidayPay` and `taxStatus`, read and written through `getSettings` / `writeSettings`. Archived (a deleted profile), never deleted. `travel_per_day_minor` is deprecated since v2. |
 | `shifts`          | Every shift                                    | `start_at` / `end_at` are ISO UTC. `end_at` is NULL while clocked in. Snapshots copied on creation: `hourly_rate_minor`, `bonus_minor`, `salary_agreement_json` (v5), `unpaid_breaks` and `holiday_pay_json` (v6). Has `color` and `label`. Soft delete with `deleted_at`. |
 | `paid_days`       | Vacation, sick and paid-holiday days           | `date` is a local `YYYY-MM-DD`. Pay = minutes × `hourly_rate_minor` (snapshot) × `rate_bp`. |
 | `shift_templates` | "Fixed shifts" (presets)                       | Fixed hours (`start_minute`/`end_minute`) or variable hours (both NULL), plus optional rate and bonus. |
-| `pay_components`  | Recurring additions and deductions             | `calculation`: monthlyFixed, perWorkDay, perWorkHour, percentOfGross. |
+| `pay_components`  | Recurring additions and deductions             | `calculation`: monthlyFixed, perWorkDay, perWorkHour, percentOfGross. `job_id` (v8): the profile it belongs to. |
 | `pay_adjustments` | One-off bonuses and deductions                 | Keyed by `period_key` (`YYYY-MM`). |
 | `tax_profiles`    | The tax system values (brackets, insurance…)   | `rules_json`, validated by `normalizeTaxRules`. Exactly one `is_active`. |
 | `planned_shifts`  | The weekly schedule                            | One plan per date. Not a work record, so clearing a day deletes it. |
@@ -45,6 +45,8 @@ Units: every `*_minor` column is an integer in agorot/cents. Every `*_bp` value 
 
 - Migration 1: one hourly job, **"My job"**, set as `defaultJobId`, and an **"Israel — employee"** tax profile.
 - Migration 3: adds `jobs.default_shift_bonus_minor` (global bonus per shift, default 0).
+- Migration 7: sets `onboardingCompletedAt` for installs already in use (any shift, paid day or a job with pay), so only fresh installs see the first-run onboarding.
+- Migration 8: job profiles. Adds `jobs.profile_settings_json` (each job starts with the settings used until then) and `pay_components.job_id`; existing additions, deductions and job-less one-off items go to the default job.
 - Migration 2: upgrades an untouched tax profile to the 2026 values. It also turns the v1 pension / study-fund rates into **deductions** and the v1 per-job travel allowance into a **"Travel" addition**.
 
 Migrations must never read constants that change later. Migration 1 keeps an inline copy of exactly what it originally inserted.
@@ -59,7 +61,8 @@ Migrations must never read constants that change later. Migration 1 keeps an inl
 
 | Area            | Functions |
 | --------------- | --------- |
-| Settings        | `getSettings`, `updateSettings` |
+| Settings        | `getSettings`, `getActiveJobId`, `updateSettings`, `completeOnboarding` (first-run answers, one transaction) |
+| Profiles        | `listProfiles`, `createProfile`, `selectProfile`, `updateProfile`, `deleteProfile` (archives the job) |
 | Jobs            | `listJobs`, `getJob`, `createJob`, `updateJob`, `setJobArchived` |
 | Shifts          | `getShift`, `getOpenShift`, `listShiftsStartingBetween`, `listRecentShifts`, `findOverlappingShifts`, `createShift`, `updateShift`, `clockIn`, `clockOut`, `deleteShift`, `restoreShift` |
 | Paid days       | `getPaidDay`, `listPaidDaysBetween`, `createPaidDay`, `updatePaidDay`, `deletePaidDay` |

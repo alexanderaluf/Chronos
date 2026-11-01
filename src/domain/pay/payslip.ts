@@ -37,6 +37,8 @@ export type PayslipInput = {
   taxRules: TaxRules;
   taxStatus: TaxStatus;
   creditPoints: CreditPointResult;
+  /** Income-tax credit for the employee's pension deposit; left out, none. */
+  pensionCredit?: MinorUnits;
 };
 
 export type Payslip = {
@@ -92,6 +94,7 @@ export function computePayslip(input: PayslipInput): Payslip {
     creditPointsHundredths: input.creditPoints.totalHundredths,
     rules: input.taxRules,
     status: input.taxStatus,
+    pensionCredit: input.pensionCredit,
   });
   const mandatoryLines: PayslipLine[] = [
     { key: "incomeTax", label: "Income tax", amount: mandatory.incomeTax },

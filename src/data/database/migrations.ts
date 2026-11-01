@@ -347,6 +347,58 @@ export const MIGRATIONS: Migration[] = [
       await tx.runAsync("UPDATE shifts SET holiday_pay_json = ?", holidayPay?.value_json ?? v5Default);
     },
   },
+  {
+    version: 7,
+    name: "first-run onboarding",
+    async up(tx) {
+      // Installs that are already in use skip the new onboarding; a fresh or untouched install sees it.
+      const used = await tx.getFirstAsync<{ used: number }>(
+        `SELECT EXISTS (SELECT 1 FROM shifts) OR EXISTS (SELECT 1 FROM paid_days)
+           OR EXISTS (SELECT 1 FROM jobs WHERE hourly_rate_minor > 0 OR monthly_salary_minor > 0) AS used`,
+      );
+      if (!used?.used) return;
+      const now = nowIso();
+      await tx.runAsync(
+        `INSERT INTO settings (key, value_json, updated_at) VALUES ('onboardingCompletedAt', ?, ?)
+         ON CONFLICT (key) DO NOTHING`,
+        JSON.stringify(now),
+        now,
+      );
+    },
+  },
+  {
+    version: 8,
+    name: "job profiles",
+    async up(tx) {
+      // Each job is a profile: it keeps its own employer, pay period, holiday and tax settings,
+      // and its own recurring additions and deductions.
+      await tx.execAsync(`
+        ALTER TABLE jobs ADD COLUMN profile_settings_json TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE pay_components ADD COLUMN job_id TEXT REFERENCES jobs (id);
+        CREATE INDEX pay_components_by_job ON pay_components (job_id) WHERE deleted_at IS NULL;
+      `);
+      // Inline list (migrations never read constants that change later).
+      const keys = ["employer", "payPeriodStartDay", "holidayPay", "taxStatus"];
+      const rows = await tx.getAllAsync<{ key: string; value_json: string }>(
+        `SELECT key, value_json FROM settings WHERE key IN (${keys.map(() => "?").join(", ")})`,
+        ...keys,
+      );
+      const profileSettings: Record<string, unknown> = {};
+      for (const row of rows) profileSettings[row.key] = parseJson(row.value_json);
+      // Every existing job starts with the settings the app used until now.
+      await tx.runAsync("UPDATE jobs SET profile_settings_json = ?", JSON.stringify(profileSettings));
+
+      // Existing items belonged to the one job everyone had: the default job (or the oldest).
+      const saved = await tx.getFirstAsync<{ value_json: string }>("SELECT value_json FROM settings WHERE key = 'defaultJobId'");
+      const savedId = saved ? parseJson(saved.value_json) : null;
+      const job =
+        (typeof savedId === "string" ? await tx.getFirstAsync<{ id: string }>("SELECT id FROM jobs WHERE id = ?", savedId) : null) ??
+        (await tx.getFirstAsync<{ id: string }>("SELECT id FROM jobs ORDER BY created_at LIMIT 1"));
+      if (!job) return;
+      await tx.runAsync("UPDATE pay_components SET job_id = ? WHERE job_id IS NULL", job.id);
+      await tx.runAsync("UPDATE pay_adjustments SET job_id = ? WHERE job_id IS NULL", job.id);
+    },
+  },
 ];
 
 export const LATEST_DATABASE_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

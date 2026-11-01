@@ -1,7 +1,7 @@
-import { useJobs } from "@/data/hooks/queries";
+import { useActiveJob } from "@/data/hooks/queries";
 
-/** Currency for totals: the first job's currency. Multi-currency totals are not supported yet. */
+/** Currency for totals: the active profile's currency. */
 export function usePrimaryCurrency(): string {
-  const jobs = useJobs();
-  return jobs.data?.[0]?.currencyCode ?? "ILS";
+  const job = useActiveJob();
+  return job.data?.currencyCode ?? "ILS";
 }

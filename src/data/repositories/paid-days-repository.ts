@@ -64,12 +64,13 @@ export async function getPaidDay(database: SQLiteDatabase, id: string): Promise<
   return row ? toPaidDay(row) : null;
 }
 
-/** Paid days with `from <= date < to` (local date keys). */
-export async function listPaidDaysBetween(database: SQLiteDatabase, from: LocalDateKey, to: LocalDateKey) {
+/** Paid days with `from <= date < to` (local date keys). Pass `jobId` for one profile only. */
+export async function listPaidDaysBetween(database: SQLiteDatabase, from: LocalDateKey, to: LocalDateKey, jobId?: string | null) {
   const rows = await database.getAllAsync<PaidDayRow>(
-    "SELECT * FROM paid_days WHERE deleted_at IS NULL AND date >= ? AND date < ? ORDER BY date",
+    `SELECT * FROM paid_days WHERE deleted_at IS NULL AND date >= ? AND date < ? ${jobId ? "AND job_id = ?" : ""} ORDER BY date`,
     from,
     to,
+    ...(jobId ? [jobId] : []),
   );
   return rows.map(toPaidDay);
 }

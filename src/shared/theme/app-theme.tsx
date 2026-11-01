@@ -21,15 +21,16 @@ type AccentOption = {
   dark: { accent: string; foreground: string };
 };
 
+/** Text and icons on the accent are black for every accent. */
 export const ACCENT_OPTIONS: AccentOption[] = [
-  { id: "cyan", label: "Cyan", swatch: "#45BCD4", light: { accent: "#087E8B", foreground: "#FFFFFF" }, dark: { accent: "#70D2EB", foreground: "#083442" } },
-  { id: "blue", label: "Blue", swatch: "#4D8FF7", light: { accent: "#2563EB", foreground: "#FFFFFF" }, dark: { accent: "#7DB3FF", foreground: "#0B2850" } },
-  { id: "violet", label: "Violet", swatch: "#9A77E8", light: { accent: "#7138C7", foreground: "#FFFFFF" }, dark: { accent: "#B89CF5", foreground: "#2A1750" } },
-  { id: "rose", label: "Rose", swatch: "#E36A98", light: { accent: "#B83768", foreground: "#FFFFFF" }, dark: { accent: "#F187AE", foreground: "#4B1028" } },
-  { id: "coral", label: "Coral", swatch: "#EA685B", light: { accent: "#BB4034", foreground: "#FFFFFF" }, dark: { accent: "#FF958A", foreground: "#4C130E" } },
-  { id: "amber", label: "Amber", swatch: "#D99A2B", light: { accent: "#966000", foreground: "#FFFFFF" }, dark: { accent: "#F2C66D", foreground: "#3E2900" } },
-  { id: "green", label: "Green", swatch: "#42B77B", light: { accent: "#177849", foreground: "#FFFFFF" }, dark: { accent: "#7ADDAA", foreground: "#123D29" } },
-  { id: "lime", label: "Lime", swatch: "#86AD3A", light: { accent: "#557817", foreground: "#FFFFFF" }, dark: { accent: "#B9DB72", foreground: "#2D3D0D" } },
+  { id: "cyan", label: "Cyan", swatch: "#45BCD4", light: { accent: "#087E8B", foreground: "#000000" }, dark: { accent: "#70D2EB", foreground: "#000000" } },
+  { id: "blue", label: "Blue", swatch: "#4D8FF7", light: { accent: "#2563EB", foreground: "#000000" }, dark: { accent: "#7DB3FF", foreground: "#000000" } },
+  { id: "violet", label: "Violet", swatch: "#9A77E8", light: { accent: "#7138C7", foreground: "#000000" }, dark: { accent: "#B89CF5", foreground: "#000000" } },
+  { id: "rose", label: "Rose", swatch: "#E36A98", light: { accent: "#B83768", foreground: "#000000" }, dark: { accent: "#F187AE", foreground: "#000000" } },
+  { id: "coral", label: "Coral", swatch: "#EA685B", light: { accent: "#BB4034", foreground: "#000000" }, dark: { accent: "#FF958A", foreground: "#000000" } },
+  { id: "amber", label: "Amber", swatch: "#D99A2B", light: { accent: "#966000", foreground: "#000000" }, dark: { accent: "#F2C66D", foreground: "#000000" } },
+  { id: "green", label: "Green", swatch: "#42B77B", light: { accent: "#177849", foreground: "#000000" }, dark: { accent: "#7ADDAA", foreground: "#000000" } },
+  { id: "lime", label: "Lime", swatch: "#86AD3A", light: { accent: "#557817", foreground: "#000000" }, dark: { accent: "#B9DB72", foreground: "#000000" } },
 ];
 
 /** Root background per scheme — matches `--background` in global.css and app.json. */
@@ -39,6 +40,18 @@ export function colorWithAlpha(color: string, alpha: number) {
   const processed = processColor(color.trim());
   if (typeof processed !== "number") return color;
   return `rgba(${(processed >>> 16) & 255}, ${(processed >>> 8) & 255}, ${processed & 255}, ${Math.min(Math.max(alpha, 0), 1)})`;
+}
+
+/** Dark or light text, whichever reads better on `color` (e.g. initials on a job color). */
+export function readableTextOn(color: string) {
+  const processed = processColor(color.trim());
+  if (typeof processed !== "number") return "#090909";
+  const channel = (shift: number) => {
+    const value = ((processed >>> shift) & 255) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
+  return luminance > 0.36 ? "#090909" : "#FFFFFF";
 }
 
 export function useAppThemeColors() {

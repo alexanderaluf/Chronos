@@ -103,30 +103,33 @@ export const DEFAULT_JOB_INPUT: JobInput = {
 };
 
 export async function createJob(database: SQLiteDatabase, input: JobInput): Promise<Job> {
+  return writeTransaction(database, (db) => writeNewJob(db, input));
+}
+
+/** `createJob` for code already inside `writeTransaction` (transactions cannot nest). */
+export async function writeNewJob(db: SQLiteDatabase, input: JobInput): Promise<Job> {
   validateJob(input);
   const id = newId();
   const now = nowIso();
-  await writeTransaction(database, (db) =>
-    db.runAsync(
-      `INSERT INTO jobs (id, name, color, pay_type, hourly_rate_minor, default_shift_bonus_minor, monthly_salary_minor,
-         monthly_hours_divisor, currency_code, travel_per_day_minor, pay_rules_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id,
-      input.name.trim(),
-      input.color,
-      input.payType,
-      input.hourlyRate,
-      input.defaultShiftBonus,
-      input.monthlySalary,
-      input.monthlyHoursDivisor,
-      input.currencyCode,
-      input.travelPerDay,
-      JSON.stringify(normalizePayRules(input.payRules)),
-      now,
-      now,
-    ),
+  await db.runAsync(
+    `INSERT INTO jobs (id, name, color, pay_type, hourly_rate_minor, default_shift_bonus_minor, monthly_salary_minor,
+       monthly_hours_divisor, currency_code, travel_per_day_minor, pay_rules_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    input.name.trim(),
+    input.color,
+    input.payType,
+    input.hourlyRate,
+    input.defaultShiftBonus,
+    input.monthlySalary,
+    input.monthlyHoursDivisor,
+    input.currencyCode,
+    input.travelPerDay,
+    JSON.stringify(normalizePayRules(input.payRules)),
+    now,
+    now,
   );
-  return (await getJob(database, id))!;
+  return (await getJob(db, id))!;
 }
 
 /**

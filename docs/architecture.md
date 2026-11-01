@@ -11,6 +11,7 @@ src/
 │   ├── (tabs)/          Home · Calendar · Stats · Settings (renders features/navigation/main-tabs)
 │   ├── shifts/, paid-days/, adjustments/    Add / edit screens
 │   ├── settings/        Personal info, salary, rates, additions, deductions, taxes, fixed shifts…
+│   ├── profile/         Profile hub, manage jobs, new job, edit job
 │   ├── tools/           Quick calculator, weekly schedule
 │   └── about.tsx
 │
@@ -18,7 +19,7 @@ src/
 │   ├── entities.ts      The records the app works with (Job, Shift, PaidDay, TaxProfile…)
 │   ├── money/           Integer money math (agorot, basis points, rounding)
 │   ├── time/            Durations, night windows, rest days, pay periods (DST-safe)
-│   ├── pay/             Shift pay, pay components, payslip, period summary, quick calculator
+│   ├── pay/             Shift pay, pay components, payslip, period summary, quick and global salary calculators
 │   ├── tax/             Tax-system rules, personal status, credit points, mandatory deductions
 │   └── domain.test.ts   Unit tests, including a real 2026 payslip reproduced to the agora
 │
@@ -41,6 +42,8 @@ src/
 │   ├── settings/        Settings menu and every setup screen
 │   ├── tools/           Quick salary calculator, weekly schedule
 │   ├── about/           About & privacy
+│   ├── onboarding/      First-run setup over the app: language, first job and pay, tax basics, work city, animated how-to
+│   ├── profiles/        Job profiles (Plutus profiles): hub, switcher, manage, new / edit job
 │   └── navigation/      The tabs, their action buttons, and the "+" menu sheet
 │
 ├── localization/        i18next setup (en / he / ru), LocalizationProvider (language + RTL),
@@ -92,8 +95,22 @@ These rules keep salary numbers trustworthy. Code review should check them.
 1. **Money is integer minor units** (agorot/cents). Percentages are integer **basis points** (10000 = 100%). Rounding happens once, in `domain/money` (`divideRounded`, half away from zero).
 2. **Time is stored as ISO-8601 UTC** strings and handled as `Date`. Durations come from real instants, so shifts that cross midnight or a daylight-saving change are exact. Calendar questions (which day, night hours, rest day) use the device's local time.
 3. **History never changes by accident.** Shifts and paid days keep a snapshot of their hourly rate, so changing your rate only affects new records. Deletes are soft (`deleted_at`), and jobs are archived, never deleted.
-4. **The UI does not calculate pay.** Screens read results from `domain/` via `data/reports`. The monthly report and the quick calculator share `computePayslip`, so they always agree.
+4. **The UI does not calculate pay.** Screens read results from `domain/` via `data/reports`. The monthly report and both calculators (hourly and global salary) share `computePayslip`, so they always agree.
 5. **Every rule value is editable.** Israeli defaults (overtime 125%/150%, rest day 150%, tax brackets, credit points, insurance) are only starting values, stored per job and per tax profile.
+
+## Job profiles
+
+Each job the user works at is one **profile** (the Plutus profile model, with a job in place of a person). `settings.defaultJobId` is the active profile, and everything the app shows follows it:
+
+- **Per profile:** the job (name, color, pay, pay rules), its shifts, paid days, fixed shifts, one-off monthly items, recurring additions and deductions (`pay_components.job_id`), and four settings stored on the job row (`jobs.profile_settings_json`): `employer`, `payPeriodStartDay`, `holidayPay` and `taxStatus`. `getSettings` puts the active profile's values into `AppSettings` and `writeSettings` saves them back to the job, so screens use one settings object and never need to know which values are per profile.
+- **Shared:** language, theme and other app preferences, personal info (birth date, gender, children), the tax system (`tax_profiles`) and the weekly schedule.
+- **Reports:** `loadPeriodReport` prices only the active profile's records, so each job has its own payslip. Shifts may still not overlap across jobs.
+- **Tax credit points** are claimed at one employer. A new job that is not the main job gets manual credit points of 0; the user can change this in Taxes.
+- **UI:** `TabHeader` (`shared/ui/tab-header.tsx`) shows the active job's name and its round avatar (`ProfileAvatar`, HeroUI Avatar) above the tabs. `MainTabs` passes it to `TabShell`, which renders it once outside the tab `Slot`, floating on the shared top fade (`TopSafeAreaGradient`) like every other header, so it does not reload on a tab change. It sets the reading direction itself, and the tabs see a top safe-area inset that includes the header, so their content starts below it and scrolls under the fade. The tabs have no page title (the bottom navigation names them). Tapping it opens `/profile`: the hub with the job switcher, *Add a job* and *Manage jobs*. Onboarding creates the first profile; deleting a profile archives its job (records stay on the device, hidden), and the last profile cannot be deleted.
+
+## First-run onboarding
+
+`features/onboarding/onboarding-gate.tsx` wraps the Stack in the root layout and draws the setup over the app while `settings.onboardingCompletedAt` is null. It asks only what correct pay needs from the first shift: language (applied immediately, including RTL), the first job's name (the first profile), hourly or monthly pay (+ optional travel per work day), gender (credit points), employment type (insurance) and work city (holiday hours). It ends with an animated "log a shift" walkthrough. `completeOnboarding` (`data/repositories/onboarding-repository.ts`) saves everything in one transaction; everything else keeps its default and stays editable in Settings. Migration 7 marks installs that were already in use as onboarded.
 
 ## Languages and RTL
 
@@ -143,7 +160,9 @@ settings, tax      ┘   domain/pay/period-summary.ts
                               = net
 ```
 
-The estimate is not a payslip. It does not model annual tax coordination, the tax credit for pension deposits, or employer-specific items.
+The estimate is not a payslip. It does not model annual tax coordination or employer-specific items. The monthly report also leaves out the tax credit for pension deposits.
+
+The calculator (`/tools/calculator`, the Settings tab's action button) has two modes. **Hourly** is the original `quickSalaryEstimate`. **Global salary** is `globalSalaryEstimate` (`domain/pay/global-salary.ts`), a monthly payslip for an employee in Israel. It takes the base salary, global overtime, travel, convalescence pay, other taxable additions and taxable benefits. It applies income tax with the 35% pension credit (`pensionDepositCredit`), national and health insurance, the employee's pension and study-fund deposits, and taxes the employer's study-fund deposit above the ceiling as a benefit. It also returns the employer's deposits, the employer's national insurance and cost, and what was saved. Its yearly figures are in `ISRAEL_2026_PAYROLL_RULES`; add a new constant for a new year.
 
 ## UI stack
 

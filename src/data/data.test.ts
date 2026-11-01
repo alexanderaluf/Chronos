@@ -15,10 +15,10 @@ import { createHolidayWindows } from "../domain/holidays/holiday-windows";
 import { israelWallTime } from "../domain/holidays/zoned-time";
 import type { HolidayCalendar } from "../domain/holidays/premium-intervals";
 import { loadPeriodReport, loadYearReport } from "./reports/period-report";
-import { createAdjustment } from "./repositories/adjustments-repository";
 import { DEFAULT_SALARY_AGREEMENT } from "../domain/pay/salary-agreement";
 import { listJobs, updateJob } from "./repositories/jobs-repository";
 import { createPaidDay } from "./repositories/paid-days-repository";
+import { completeOnboarding } from "./repositories/onboarding-repository";
 import { createPayComponent, listPayComponents } from "./repositories/pay-components-repository";
 import { clearPlannedShift, getNextPlannedShift, savePlannedShift } from "./repositories/planned-shifts-repository";
 import { getSettings, updateSettings } from "./repositories/settings-repository";
@@ -26,6 +26,9 @@ import { createShiftTemplate, listShiftTemplates } from "./repositories/shift-te
 import { clockIn, clockOut, createShift, deleteShift, getOpenShift, getShift, restoreShift, saveHolidayPaySettings, saveSalarySettings, updateShift } from "./repositories/shifts-repository";
 import { getActiveTaxProfile } from "./repositories/tax-profiles-repository";
 import { createTestDatabase, migrateTestDatabase } from "./testing/node-sqlite-database";
+import { LATEST_DATABASE_VERSION } from "./database/migrations";
+import { createProfile, deleteProfile, listProfiles, selectProfile, updateProfile } from "./repositories/profiles-repository";
+import { createAdjustment, listAdjustmentsForPeriod } from "./repositories/adjustments-repository";
 
 const local = (y: number, m: number, d: number, h = 0, min = 0) => new Date(y, m - 1, d, h, min);
 
@@ -53,6 +56,197 @@ describe("migrations", () => {
     const [job] = await listJobs(db);
     assert.equal((await getSettings(db)).defaultJobId, job.id);
     assert.deepEqual((await listPayComponents(db)).map((c) => c.name), ["Pension fund"]);
+  });
+});
+
+describe("onboarding", () => {
+  it("shows onboarding on a fresh install and skips it for installs already in use", async () => {
+    assert.equal((await getSettings(await createTestDatabase())).onboardingCompletedAt, null);
+
+    const untouched = await createTestDatabase(6);
+    await migrateTestDatabase(untouched, 6, LATEST_DATABASE_VERSION);
+    assert.equal((await getSettings(untouched)).onboardingCompletedAt, null);
+
+    const inUse = await createTestDatabase(6);
+    await inUse.execAsync("UPDATE jobs SET hourly_rate_minor = 4500");
+    await migrateTestDatabase(inUse, 6, LATEST_DATABASE_VERSION);
+    assert.match((await getSettings(inUse)).onboardingCompletedAt ?? "", /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("saves pay, personal basics, work city and travel in one step", async () => {
+    const db = await createTestDatabase();
+    const input = {
+      language: "he",
+      jobName: "קפה ארומה",
+      payType: "hourly",
+      hourlyRate: 4_500,
+      monthlySalary: 0,
+      monthlyHoursDivisor: 182,
+      travelPerDay: 1_100,
+      travelName: "נסיעות",
+      gender: "female",
+      employmentType: "selfEmployed",
+      workCity: "haifa",
+    } as const;
+    const settings = await completeOnboarding(db, input, new Date("2026-11-01T08:00:00Z"));
+
+    const [job] = await listJobs(db);
+    assert.equal(job.name, "קפה ארומה");
+    assert.equal(job.payType, "hourly");
+    assert.equal(job.hourlyRate, 4_500);
+    assert.equal(settings.appLanguage, "he");
+    assert.equal(settings.personalInfo.gender, "female");
+    assert.equal(settings.taxStatus.employmentType, "selfEmployed");
+    assert.equal(settings.holidayPay.workCity, "haifa");
+    assert.equal(settings.holidayPay.enabled, true);
+    assert.equal(settings.onboardingCompletedAt, "2026-11-01T08:00:00.000Z");
+    assert.deepEqual(
+      (await listPayComponents(db, "addition")).map((c) => [c.name, c.calculation, c.amount]),
+      [["נסיעות", "perWorkDay", 1_100]],
+    );
+
+    const shift = await createShift(db, { jobId: job.id, startAt: local(2026, 11, 2, 8), endAt: local(2026, 11, 2, 16), timeZone: "Asia/Jerusalem" });
+    assert.equal(shift.hourlyRate, 4_500, "the first shift already uses the rate");
+  });
+
+  it("saves a monthly salary without travel, and refuses a missing salary", async () => {
+    const db = await createTestDatabase();
+    const base = {
+      language: "en",
+      jobName: "Office",
+      payType: "monthly",
+      hourlyRate: 0,
+      monthlySalary: 0,
+      monthlyHoursDivisor: 186,
+      travelPerDay: 0,
+      travelName: "Travel",
+      gender: "male",
+      employmentType: "employee",
+      workCity: "telAviv",
+    } as const;
+    await assert.rejects(completeOnboarding(db, base), /Enter your pay/);
+    assert.equal((await getSettings(db)).onboardingCompletedAt, null, "nothing is saved");
+
+    await completeOnboarding(db, { ...base, monthlySalary: 1_200_000 });
+    const [job] = await listJobs(db);
+    assert.equal(job.payType, "monthly");
+    assert.equal(job.monthlySalary, 1_200_000);
+    assert.equal(job.monthlyHoursDivisor, 186);
+    assert.deepEqual(await listPayComponents(db, "addition"), []);
+  });
+});
+
+describe("job profiles", () => {
+  const secondJob = {
+    name: "Evening bar",
+    color: "#A79BE0",
+    payType: "hourly",
+    hourlyRate: 6_000,
+    monthlySalary: 0,
+    monthlyHoursDivisor: 182,
+    currencyCode: "ILS",
+    travelPerDay: 1_500,
+    travelName: "Travel",
+    pensionName: "Pension fund",
+    employmentType: "employee",
+    workCity: "jerusalem",
+    isMainJob: false,
+  } as const;
+
+  it("gives existing data and settings to the job everyone had", async () => {
+    const db = await createTestDatabase(7);
+    await db.execAsync(`INSERT INTO settings (key, value_json, updated_at) VALUES ('employer', '{"name":"Old boss","email":"","notes":""}', '2026-01-01T00:00:00Z'),
+      ('payPeriodStartDay', '10', '2026-01-01T00:00:00Z')`);
+    await db.execAsync(`INSERT INTO pay_adjustments (id, job_id, period_key, kind, label, amount_minor, is_taxable, created_at, updated_at)
+      VALUES ('a1', NULL, '2026-09', 'bonus', 'Holiday gift', 50000, 1, '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')`);
+    await migrateTestDatabase(db, 7, LATEST_DATABASE_VERSION);
+
+    const [job] = await listJobs(db);
+    const settings = await getSettings(db);
+    assert.equal(settings.defaultJobId, job.id);
+    assert.equal(settings.employer.name, "Old boss");
+    assert.equal(settings.payPeriodStartDay, 10);
+    assert.equal((await listPayComponents(db, "deduction", job.id)).length, 1, "the pension stays with the job");
+    assert.equal((await listAdjustmentsForPeriod(db, "2026-09", job.id)).length, 1);
+  });
+
+  it("creates, switches, renames and deletes profiles", async () => {
+    const db = await createTestDatabase();
+    const [first] = await listJobs(db);
+    await updateSettings(db, { employer: { name: "Café", email: "", notes: "" }, payPeriodStartDay: 15 });
+
+    const second = await createProfile(db, secondJob);
+    let settings = await getSettings(db);
+    assert.equal(settings.defaultJobId, second.id, "a new profile becomes active");
+    assert.equal(settings.employer.name, "", "a new profile has its own employer");
+    assert.equal(settings.payPeriodStartDay, 15, "and starts with the same pay period");
+    assert.equal(settings.holidayPay.workCity, "jerusalem");
+    assert.equal(settings.taxStatus.creditPointsMode, "manual", "credit points stay with the main job");
+    assert.equal(settings.taxStatus.manualCreditPointsHundredths, 0);
+    assert.deepEqual((await listPayComponents(db, undefined, second.id)).map((c) => [c.kind, c.amount, c.rateBp]), [
+      ["addition", 1_500, 0],
+      ["deduction", 0, 600],
+    ]);
+
+    await selectProfile(db, first.id);
+    settings = await getSettings(db);
+    assert.equal(settings.employer.name, "Café", "each profile keeps its own settings");
+    assert.equal(settings.taxStatus.creditPointsMode, "auto");
+
+    await updateProfile(db, second.id, { name: "Bar", color: "#86D3C7" });
+    assert.deepEqual((await listProfiles(db)).map((p) => [p.job.name, p.shiftCount]), [["My job", 0], ["Bar", 0]]);
+
+    await selectProfile(db, second.id);
+    await deleteProfile(db, second.id);
+    assert.equal((await getSettings(db)).defaultJobId, first.id, "the other profile becomes active");
+    assert.equal((await listProfiles(db)).length, 1);
+    await assert.rejects(deleteProfile(db, first.id), /at least one profile/);
+    await assert.rejects(selectProfile(db, second.id), /no longer exists/);
+  });
+
+  it("shows only the active profile's shifts, items and payslip", async () => {
+    const db = await createTestDatabase();
+    const [first] = await listJobs(db);
+    await updateJob(db, first.id, { hourlyRate: 4_000 });
+    await createShift(db, { jobId: first.id, startAt: local(2026, 9, 1, 8), endAt: local(2026, 9, 1, 16), timeZone: "Asia/Jerusalem" });
+    await createAdjustment(db, { jobId: null, periodKey: "2026-09", kind: "bonus", label: "Gift", amount: 10_000, isTaxable: true });
+
+    const second = await createProfile(db, { ...secondJob, travelPerDay: 0 });
+    await createShift(db, { jobId: second.id, startAt: local(2026, 9, 2, 18), endAt: local(2026, 9, 2, 22), timeZone: "Asia/Jerusalem" });
+    await assert.rejects(
+      createShift(db, { jobId: second.id, startAt: local(2026, 9, 1, 15), endAt: local(2026, 9, 1, 18), timeZone: "Asia/Jerusalem" }),
+      /overlaps/,
+      "one person cannot work two jobs at once",
+    );
+
+    const bar = await loadPeriodReport(db, "2026-09");
+    assert.deepEqual(bar.shifts.map((item) => item.shift.jobId), [second.id]);
+    assert.equal(bar.payslip.gross, 24_000, "4 h × 60, no bonus from the other job");
+
+    await selectProfile(db, first.id);
+    const cafe = await loadPeriodReport(db, "2026-09");
+    assert.deepEqual(cafe.shifts.map((item) => item.shift.jobId), [first.id]);
+    assert.equal(cafe.payslip.gross, 32_000 + 10_000, "8 h × 40 + the gift");
+    assert.deepEqual((await listProfiles(db)).map((p) => p.shiftCount), [1, 1]);
+  });
+
+  it("applies holiday settings to the active profile's shifts only", async () => {
+    const db = await createTestDatabase();
+    const [first] = await listJobs(db);
+    const now = local(2026, 9, 20, 12);
+    await createShift(db, { jobId: first.id, startAt: local(2026, 9, 3, 8), endAt: local(2026, 9, 3, 12), timeZone: "Asia/Jerusalem" });
+    const second = await createProfile(db, secondJob);
+    const shift = await createShift(db, { jobId: second.id, startAt: local(2026, 9, 4, 8), endAt: local(2026, 9, 4, 12), timeZone: "Asia/Jerusalem" });
+    await selectProfile(db, first.id);
+    const firstShift = (await loadPeriodReport(db, "2026-09")).shifts[0].shift;
+
+    await saveHolidayPaySettings(db, { ...DEFAULT_HOLIDAY_PAY_SETTINGS, workCity: "eilat" }, "currentPeriod", now);
+    assert.equal((await getShift(db, firstShift.id))?.holidayPay?.workCity, "eilat");
+    assert.equal((await getShift(db, shift.id))?.holidayPay?.workCity, "jerusalem");
+
+    // A shift for the other job (while this one is active) still takes that job's settings.
+    const other = await createShift(db, { jobId: second.id, startAt: local(2026, 9, 5, 8), endAt: local(2026, 9, 5, 12), timeZone: "Asia/Jerusalem" });
+    assert.equal(other.holidayPay?.workCity, "jerusalem");
   });
 });
 
@@ -332,7 +526,7 @@ describe("salary agreement storage", () => {
     const db = await createTestDatabase(4);
     const [job] = await listJobs(db);
     await db.runAsync("INSERT INTO shifts (id, job_id, start_at, end_at, time_zone, hourly_rate_minor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", "legacy", job.id, local(2026, 10, 4, 8).toISOString(), local(2026, 10, 4, 9).toISOString(), "Asia/Jerusalem", 3900, "2026-10-04", "2026-10-04");
-    await migrateTestDatabase(db, 4, 5);
+    await migrateTestDatabase(db, 4, LATEST_DATABASE_VERSION);
     await updateJob(db, job.id, { payRules: { ...job.payRules, salaryAgreement: { ...DEFAULT_SALARY_AGREEMENT, enabled: true } } });
     assert.equal((await loadPeriodReport(db, "2026-10")).shifts[0].pay.total, 3900);
   });
@@ -394,9 +588,10 @@ describe("applying salary settings to shifts", () => {
     const db = await createTestDatabase(5);
     const [job] = await listJobs(db);
     await updateJob(db, job.id, { payRules: { ...job.payRules, unpaidBreaks: false } });
-    await updateSettings(db, { holidayPay: { ...DEFAULT_HOLIDAY_PAY_SETTINGS, enabled: false } });
+    // Stored the way the v5 app stored it: one global settings row.
+    await db.runAsync("INSERT INTO settings (key, value_json, updated_at) VALUES ('holidayPay', ?, '2026-10-01')", JSON.stringify({ ...DEFAULT_HOLIDAY_PAY_SETTINGS, enabled: false }));
     await db.runAsync("INSERT INTO shifts (id, job_id, start_at, end_at, time_zone, hourly_rate_minor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", "legacy", job.id, local(2026, 10, 4, 8).toISOString(), local(2026, 10, 4, 9).toISOString(), "Asia/Jerusalem", 3900, "2026-10-04", "2026-10-04");
-    await migrateTestDatabase(db, 5, 6);
+    await migrateTestDatabase(db, 5, LATEST_DATABASE_VERSION);
     const legacy = (await getShift(db, "legacy"))!;
     assert.equal(legacy.unpaidBreaks, false);
     assert.equal(legacy.holidayPay?.enabled, false);

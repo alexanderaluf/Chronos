@@ -14,6 +14,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useUniwind } from "uniwind";
 
 import { DATABASE_NAME, initializeDatabase } from "@/data/database/initialize-database";
+import { OnboardingGate } from "@/features/onboarding/onboarding-gate";
 import { i18n } from "@/localization/i18n";
 import { LocalizationProvider } from "@/localization/localization-provider";
 import { AppThemeController, ROOT_BACKGROUNDS, useAppThemeColors } from "@/shared/theme/app-theme";
@@ -24,7 +25,7 @@ import { PortalProvider } from "@/shared/ui/overlay/portal";
 /**
  * Root providers, outermost first:
  * gestures → safe areas → local database → localization (language, RTL, HeroUI)
- * → overlay portal → theme → navigation.
+ * → overlay portal → theme → navigation (under the first-run onboarding).
  * The portal layer hosts the Android sheets and dialogs (iOS uses native ones).
  * The database is opened and migrated (`initializeDatabase`) before any screen renders.
  */
@@ -62,16 +63,18 @@ function AppNavigation() {
 
   return (
     <ThemeProvider value={navigationTheme}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: background },
-          headerStyle: { backgroundColor: background },
-          headerShadowVisible: false,
-          headerTintColor: accent,
-          headerTitleStyle: { color: foreground, fontFamily: "Huninn_400Regular" },
-        }}
-      />
+      <OnboardingGate>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: background },
+            headerStyle: { backgroundColor: background },
+            headerShadowVisible: false,
+            headerTintColor: accent,
+            headerTitleStyle: { color: foreground, fontFamily: "Huninn_400Regular" },
+          }}
+        />
+      </OnboardingGate>
     </ThemeProvider>
   );
 }

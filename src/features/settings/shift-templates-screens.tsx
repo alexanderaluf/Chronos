@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 
-import { useDefaultJob, useShiftTemplate, useShiftTemplates } from "@/data/hooks/queries";
+import { useActiveJob, useShiftTemplate, useShiftTemplates } from "@/data/hooks/queries";
 import {
   createShiftTemplate,
   deleteShiftTemplate,
@@ -144,7 +144,7 @@ function ShiftTemplateForm({ job, existing }: { job: Job; existing?: ShiftTempla
 /** Route: /settings/templates/new */
 export function NewShiftTemplateScreen() {
   const { t } = useTranslation();
-  const job = useDefaultJob();
+  const job = useActiveJob();
   if (!job.data) return <LoadingScreen message={job.error?.message ?? (job.status === "ready" ? t("common.setUpSalaryFirst") : undefined)} title={t("templates.newTitle")} />;
   return <ShiftTemplateForm job={job.data} />;
 }
@@ -153,7 +153,7 @@ export function NewShiftTemplateScreen() {
 export function EditShiftTemplateScreen({ id }: { id: string }) {
   const { t } = useTranslation();
   const template = useShiftTemplate(id);
-  const job = useDefaultJob();
+  const job = useActiveJob();
   return (
     <QueryGate query={template} title={t("templates.editTitle")}>
       {(loaded) => (job.data ? <ShiftTemplateForm existing={loaded} job={job.data} /> : <LoadingScreen title={t("templates.editTitle")} />)}

@@ -44,6 +44,10 @@ import { CelebrationFill } from "@material-symbols-svg/react-native/rounded/icon
 import { WeekendFill } from "@material-symbols-svg/react-native/rounded/icons/weekend";
 import { RedeemFill } from "@material-symbols-svg/react-native/rounded/icons/redeem";
 import { VolunteerActivismFill } from "@material-symbols-svg/react-native/rounded/icons/volunteer-activism";
+import { TranslateFill } from "@material-symbols-svg/react-native/rounded/icons/translate";
+import { LocationOnFill } from "@material-symbols-svg/react-native/rounded/icons/location-on";
+import { TouchAppFill } from "@material-symbols-svg/react-native/rounded/icons/touch-app";
+import { CommuteFill } from "@material-symbols-svg/react-native/rounded/icons/commute";
 import type { IconProps, MaterialSymbolsComponent } from "@material-symbols-svg/react-native/rounded/w400";
 import { useThemeColor } from "heroui-native";
 import { useAppLocalization } from "@/localization/localization-provider";
@@ -100,6 +104,10 @@ const icons = {
   weekend: WeekendFill,
   gift: RedeemFill,
   tips: VolunteerActivismFill,
+  translate: TranslateFill,
+  location: LocationOnFill,
+  touch: TouchAppFill,
+  commute: CommuteFill,
 } as const satisfies Record<string, MaterialSymbolsComponent>;
 
 export type FilledIconName = keyof typeof icons;

@@ -3,7 +3,7 @@ import { useSQLiteContext } from "expo-sqlite";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useDefaultJob } from "@/data/hooks/queries";
+import { useActiveJob } from "@/data/hooks/queries";
 import { saveSalarySettings } from "@/data/repositories/shifts-repository";
 import type { Job } from "@/domain/entities";
 import { agreementSupplement, hourlyPayWithAgreement, normalizeSalaryAgreement, type AgreementTreatment } from "@/domain/pay/salary-agreement";
@@ -136,6 +136,6 @@ function SalarySettingsForm({ job }: { job: Job }) {
 
 /** Route: /settings/salary */
 export function SalarySettingsScreen() {
-  const job = useDefaultJob();
+  const job = useActiveJob();
   return <QueryGate query={job} title={i18n.t("salary.title")}>{(data) => <SalarySettingsForm job={data} />}</QueryGate>;
 }

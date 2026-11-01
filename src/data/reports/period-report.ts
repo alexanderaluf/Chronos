@@ -21,17 +21,21 @@ function combinedHolidayStatus(lookups: HolidayLookup[]): HolidayLookup["status"
     ?? (statuses.includes("ready") ? "ready" : "disabled");
 }
 
-/** Loads everything for one pay period and runs the salary calculation. */
+/**
+ * Loads everything for one pay period of the active profile and runs the
+ * salary calculation: each profile (job) has its own payslip.
+ */
 export async function loadPeriodReport(database: SQLiteDatabase, periodKey: PeriodKey): Promise<PeriodSummary> {
   const settings = await getSettings(database);
+  const jobId = settings.defaultJobId;
   const period = getPayPeriod(periodKey, settings.payPeriodStartDay);
   const [jobs, shifts, paidDays, adjustments, components, taxProfile] = await Promise.all([
     // Archived jobs are still needed to price their old shifts.
     listJobs(database, { includeArchived: true }),
-    listShiftsStartingBetween(database, period.start, period.end),
-    listPaidDaysBetween(database, toLocalDateKey(period.start), toLocalDateKey(period.end)),
-    listAdjustmentsForPeriod(database, periodKey),
-    listPayComponents(database),
+    jobId ? listShiftsStartingBetween(database, period.start, period.end, jobId) : [],
+    jobId ? listPaidDaysBetween(database, toLocalDateKey(period.start), toLocalDateKey(period.end), jobId) : [],
+    jobId ? listAdjustmentsForPeriod(database, periodKey, jobId) : [],
+    jobId ? listPayComponents(database, undefined, jobId) : [],
     getActiveTaxProfile(database),
   ]);
   const creditPoints = resolveCreditPoints(
@@ -69,7 +73,7 @@ export async function loadPeriodReport(database: SQLiteDatabase, periodKey: Peri
 
 export type YearMonth = { periodKey: PeriodKey; gross: number; net: number; workedMinutes: number; shiftCount: number };
 
-/** Gross / net / hours for each month of a year — for the yearly graph. */
+/** Gross / net / hours for each month of a year of the active profile — for the yearly graph. */
 export async function loadYearReport(database: SQLiteDatabase, year: number): Promise<YearMonth[]> {
   const months: YearMonth[] = [];
   for (let month = 1; month <= 12; month += 1) {

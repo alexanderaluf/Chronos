@@ -83,13 +83,67 @@ export function normalizeSettings(raw: Record<string, unknown>): AppSettings {
   };
 }
 
-export async function getSettings(database: SQLiteDatabase): Promise<AppSettings> {
+/**
+ * Settings that belong to one job profile. They are stored on the job
+ * (`jobs.profile_settings_json`) and shown as part of `AppSettings` while
+ * that profile is active; everything else is shared by all profiles.
+ */
+export const PROFILE_SETTING_KEYS = ["employer", "payPeriodStartDay", "holidayPay", "taxStatus"] as const satisfies readonly (keyof AppSettings)[];
+type ProfileSettingKey = (typeof PROFILE_SETTING_KEYS)[number];
+
+function isProfileSettingKey(key: string): key is ProfileSettingKey {
+  return (PROFILE_SETTING_KEYS as readonly string[]).includes(key);
+}
+
+type ProfileRow = { id: string; profile_settings_json: string };
+
+/** The active profile's job: the saved one, or the oldest job that is not archived. */
+async function getActiveProfileRow(database: SQLiteDatabase, savedId: string | null): Promise<ProfileRow | null> {
+  const saved = savedId
+    ? await database.getFirstAsync<ProfileRow>(
+        "SELECT id, profile_settings_json FROM jobs WHERE id = ? AND archived_at IS NULL",
+        savedId,
+      )
+    : null;
+  return (
+    saved ??
+    (await database.getFirstAsync<ProfileRow>(
+      "SELECT id, profile_settings_json FROM jobs WHERE archived_at IS NULL ORDER BY created_at LIMIT 1",
+    ))
+  );
+}
+
+/**
+ * All settings, with the active profile's own values (employer, pay period,
+ * holiday pay, tax status) in place. `defaultJobId` is always the active
+ * profile, or null when there is no job. Pass `jobId` to read one job's
+ * profile values instead (e.g. for that job's new shift).
+ */
+export async function getSettings(database: SQLiteDatabase, jobId?: string): Promise<AppSettings> {
   const rows = await database.getAllAsync<{ key: string; value_json: string }>(
     "SELECT key, value_json FROM settings",
   );
   const raw: Record<string, unknown> = {};
   for (const row of rows) raw[row.key] = parseJson(row.value_json);
+  const profile = jobId
+    ? await database.getFirstAsync<ProfileRow>("SELECT id, profile_settings_json FROM jobs WHERE id = ?", jobId)
+    : await getActiveProfileRow(database, stringOrNull(raw.defaultJobId));
+  if (profile && jobId) {
+    const own = (parseJson(profile.profile_settings_json) ?? {}) as Record<string, unknown>;
+    for (const key of PROFILE_SETTING_KEYS) if (own[key] !== undefined) raw[key] = own[key];
+    return normalizeSettings(raw);
+  }
+  if (profile) {
+    const own = (parseJson(profile.profile_settings_json) ?? {}) as Record<string, unknown>;
+    for (const key of PROFILE_SETTING_KEYS) if (own[key] !== undefined) raw[key] = own[key];
+  }
+  raw.defaultJobId = profile?.id ?? null;
   return normalizeSettings(raw);
+}
+
+/** The job new shifts, clock-ins and reports use: the active profile. */
+export async function getActiveJobId(database: SQLiteDatabase): Promise<string | null> {
+  return (await getSettings(database)).defaultJobId;
 }
 
 export async function updateSettings(
@@ -99,11 +153,22 @@ export async function updateSettings(
   return writeTransaction(database, (db) => writeSettings(db, patch));
 }
 
-/** `updateSettings` for code already inside `writeTransaction` (transactions cannot nest). */
+/**
+ * `updateSettings` for code already inside `writeTransaction` (transactions cannot nest).
+ * Profile settings go to the active profile; when the patch also switches
+ * profile (`defaultJobId`), they go to the newly active one.
+ */
 export async function writeSettings(db: SQLiteDatabase, patch: Partial<AppSettings>): Promise<AppSettings> {
-  const next = normalizeSettings({ ...(await getSettings(db)), ...patch });
+  const current = await getSettings(db);
+  const next = normalizeSettings({ ...current, ...patch });
   const updatedAt = nowIso();
+  const profile = await getActiveProfileRow(db, next.defaultJobId);
+  const profilePatch: Record<string, unknown> = {};
   for (const key of Object.keys(patch) as (keyof AppSettings)[]) {
+    if (profile && isProfileSettingKey(key)) {
+      profilePatch[key] = next[key];
+      continue;
+    }
     await db.runAsync(
       `INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, ?)
        ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
@@ -112,5 +177,14 @@ export async function writeSettings(db: SQLiteDatabase, patch: Partial<AppSettin
       updatedAt,
     );
   }
-  return next;
+  if (profile && Object.keys(profilePatch).length > 0) {
+    const own = (parseJson(profile.profile_settings_json) ?? {}) as Record<string, unknown>;
+    await db.runAsync(
+      "UPDATE jobs SET profile_settings_json = ?, updated_at = ? WHERE id = ?",
+      JSON.stringify({ ...own, ...profilePatch }),
+      updatedAt,
+      profile.id,
+    );
+  }
+  return getSettings(db);
 }

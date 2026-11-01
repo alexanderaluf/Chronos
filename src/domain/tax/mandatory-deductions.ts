@@ -8,6 +8,8 @@ export type MandatoryDeductions = {
   incomeTaxBeforeCredits: MinorUnits;
   creditPointsValue: MinorUnits;
   settlementCredit: MinorUnits;
+  /** Tax credit for the employee's own pension deposit (0 unless the caller works it out). */
+  pensionCredit: MinorUnits;
   incomeTax: MinorUnits;
   nationalInsurance: MinorUnits;
   healthInsurance: MinorUnits;
@@ -42,15 +44,18 @@ export function tieredInsurance(
 }
 
 /**
- * Income tax (after credit points and locality credit), national insurance
- * and health insurance for one month. An estimate: it ignores annual tax
- * coordination and the tax credit for pension deposits.
+ * Income tax (after credit points, locality credit and an optional pension
+ * credit), national insurance and health insurance for one month. An
+ * estimate: it ignores annual tax coordination. The monthly report passes no
+ * pension credit; the global salary calculator works it out
+ * (`pensionDepositCredit`).
  */
 export function calculateMandatoryDeductions(input: {
   taxableIncome: MinorUnits;
   creditPointsHundredths: number;
   rules: TaxRules;
   status: TaxStatus;
+  pensionCredit?: MinorUnits;
 }): MandatoryDeductions {
   const { rules, status } = input;
   const income = Math.max(0, input.taxableIncome);
@@ -61,7 +66,8 @@ export function calculateMandatoryDeductions(input: {
     status.settlementCreditMonthlyCeiling > 0 ? Math.min(income, status.settlementCreditMonthlyCeiling) : 0,
     status.settlementCreditRateBp,
   );
-  const incomeTax = Math.max(0, incomeTaxBeforeCredits - creditPointsValue - settlementCredit);
+  const pensionCredit = Math.max(0, input.pensionCredit ?? 0);
+  const incomeTax = Math.max(0, incomeTaxBeforeCredits - creditPointsValue - settlementCredit - pensionCredit);
 
   const niRates =
     status.employmentType === "selfEmployed" ? rules.nationalInsuranceSelfEmployed : rules.nationalInsuranceEmployee;
@@ -80,6 +86,7 @@ export function calculateMandatoryDeductions(input: {
     incomeTaxBeforeCredits,
     creditPointsValue,
     settlementCredit,
+    pensionCredit,
     incomeTax,
     nationalInsurance,
     healthInsurance,

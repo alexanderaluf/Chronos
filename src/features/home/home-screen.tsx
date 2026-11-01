@@ -13,7 +13,6 @@ import { Text, TextAlignmentProvider } from "@/shared/ui/app-text";
 import { AppSpinner } from "@/shared/ui/controls/app-spinner";
 import { FilledIcon } from "@/shared/ui/filled-icon";
 import { PeriodSwitcher } from "@/shared/ui/period-switcher";
-import { TopSafeAreaGradient } from "@/shared/ui/safe-area-gradients";
 
 import { ActiveShiftCard } from "./components/active-shift-card";
 import { HomeShiftRow } from "./components/home-shift-row";
@@ -50,10 +49,9 @@ export function HomeScreen() {
           keyExtractor={(item) => item.shift.id}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + BOTTOM_NAVIGATION_CLEARANCE }}
+          contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + BOTTOM_NAVIGATION_CLEARANCE }}
           ListHeaderComponent={
             <View className="gap-4 px-5 pb-5">
-              <Text accessibilityRole="header" className="font-manrope-bold text-3xl">{t("home.shiftListTitle")}</Text>
               {navigation.isCurrent && clock.openShift ? <ActiveShiftCard openShift={clock.openShift} onToggle={() => void clock.toggle()} /> : null}
               {navigation.isCurrent ? <NextPlannedShiftCard /> : null}
               <PeriodSwitcher label={periodLabel} onNext={navigation.next} onPrevious={navigation.previous} onReset={navigation.reset} />
@@ -80,7 +78,6 @@ export function HomeScreen() {
             </View>
           }
         />
-        <TopSafeAreaGradient headerHidden />
       </View>
     </TextAlignmentProvider>
   );

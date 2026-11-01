@@ -41,9 +41,6 @@ export function StatsScreen() {
   return (
     <TextAlignmentProvider>
       <TabPage>
-        <Text accessibilityRole="header" className="pt-3 font-manrope-bold text-2xl">
-          {t("stats.mySalary")}
-        </Text>
         <PeriodSwitcher label={periodLabel} onNext={navigation.next} onPrevious={navigation.previous} onReset={navigation.reset} />
 
         {!summary ? (

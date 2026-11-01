@@ -30,7 +30,7 @@
       --default: #c7d7cd;
       --default-foreground: #2b4035;
       --accent: #087e8b;
-      --accent-foreground: #ffffff;
+      --accent-foreground: #000000;
       --field-background: #e8f0eb;
       --field-foreground: #17231c;
       --field-placeholder: #65786d;
@@ -66,7 +66,7 @@
       --default: #292929;
       --default-foreground: #f2f2f2;
       --accent: #70d2eb;
-      --accent-foreground: #083442;
+      --accent-foreground: #000000;
       --field-background: #202020;
       --field-foreground: #f2f2f2;
       --field-placeholder: #a3a3a3;

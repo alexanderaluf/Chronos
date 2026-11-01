@@ -8,7 +8,8 @@ import { getJob, listJobs } from "../repositories/jobs-repository";
 import { getPaidDay } from "../repositories/paid-days-repository";
 import { getPayComponent, listPayComponents } from "../repositories/pay-components-repository";
 import { getNextPlannedShift, listPlannedShifts } from "../repositories/planned-shifts-repository";
-import { getSettings } from "../repositories/settings-repository";
+import { listProfiles } from "../repositories/profiles-repository";
+import { getActiveJobId, getSettings } from "../repositories/settings-repository";
 import { getShiftTemplate, listShiftTemplates } from "../repositories/shift-templates-repository";
 import { getOpenShift, getShift, listRecentShifts } from "../repositories/shifts-repository";
 import { getActiveTaxProfile } from "../repositories/tax-profiles-repository";
@@ -32,8 +33,9 @@ const REPORT_TABLES = [
 
 // ─── Settings & profile ─────────────────────────────────────────────────────
 
+/** Shared settings with the active profile's own values (they live on its job row). */
 export function useSettings() {
-  return useLiveQuery("settings", [TABLES.settings], getSettings);
+  return useLiveQuery("settings", [TABLES.settings, TABLES.jobs], getSettings);
 }
 
 export function useActiveTaxProfile() {
@@ -50,13 +52,17 @@ export function useJob(id: string) {
   return useLiveQuery(`job:${id}`, [TABLES.jobs], (db) => getJob(db, id));
 }
 
-/** The default job (Settings → Salary settings edits this one). */
-export function useDefaultJob() {
-  return useLiveQuery("default-job", [TABLES.jobs, TABLES.settings], async (db): Promise<Job | null> => {
-    const settings = await getSettings(db);
-    const job = settings.defaultJobId ? await getJob(db, settings.defaultJobId) : null;
-    return job ?? (await listJobs(db)).at(0) ?? null;
+/** The active profile's job (Settings → Salary settings edits this one). */
+export function useActiveJob() {
+  return useLiveQuery("active-job", [TABLES.jobs, TABLES.settings], async (db): Promise<Job | null> => {
+    const jobId = await getActiveJobId(db);
+    return jobId ? getJob(db, jobId) : null;
   });
+}
+
+/** Every profile (job that is not deleted) with its shift count. */
+export function useProfiles() {
+  return useLiveQuery("profiles", [TABLES.jobs, TABLES.shifts], listProfiles);
 }
 
 // ─── Shifts & days ──────────────────────────────────────────────────────────
@@ -78,7 +84,9 @@ export function usePaidDay(id: string) {
 }
 
 export function useShiftTemplates() {
-  return useLiveQuery("templates", [TABLES.shiftTemplates], listShiftTemplates);
+  return useLiveQuery("templates", [TABLES.shiftTemplates, TABLES.settings, TABLES.jobs], async (db) =>
+    listShiftTemplates(db, await getActiveJobId(db)),
+  );
 }
 
 export function useShiftTemplate(id: string) {
@@ -96,7 +104,9 @@ export function useNextPlannedShift(from: LocalDateKey) {
 // ─── Pay items ──────────────────────────────────────────────────────────────
 
 export function usePayComponents(kind: PayComponentKind) {
-  return useLiveQuery(`components:${kind}`, [TABLES.payComponents], (db) => listPayComponents(db, kind));
+  return useLiveQuery(`components:${kind}`, [TABLES.payComponents, TABLES.settings, TABLES.jobs], async (db) =>
+    listPayComponents(db, kind, await getActiveJobId(db)),
+  );
 }
 
 export function usePayComponent(id: string) {
@@ -104,8 +114,8 @@ export function usePayComponent(id: string) {
 }
 
 export function useAdjustments(periodKey: PeriodKey) {
-  return useLiveQuery(`adjustments:${periodKey}`, [TABLES.payAdjustments], (db) =>
-    listAdjustmentsForPeriod(db, periodKey),
+  return useLiveQuery(`adjustments:${periodKey}`, [TABLES.payAdjustments, TABLES.settings, TABLES.jobs], async (db) =>
+    listAdjustmentsForPeriod(db, periodKey, await getActiveJobId(db)),
   );
 }
 

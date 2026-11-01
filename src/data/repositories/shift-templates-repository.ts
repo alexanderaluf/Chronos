@@ -55,9 +55,11 @@ function validate(input: ShiftTemplateInput) {
   }
 }
 
-export async function listShiftTemplates(database: SQLiteDatabase): Promise<ShiftTemplate[]> {
+/** Fixed shifts; pass `jobId` for one profile only. */
+export async function listShiftTemplates(database: SQLiteDatabase, jobId?: string | null): Promise<ShiftTemplate[]> {
   const rows = await database.getAllAsync<TemplateRow>(
-    "SELECT * FROM shift_templates WHERE deleted_at IS NULL ORDER BY sort_order, created_at",
+    `SELECT * FROM shift_templates WHERE deleted_at IS NULL ${jobId ? "AND job_id = ?" : ""} ORDER BY sort_order, created_at`,
+    ...(jobId ? [jobId] : []),
   );
   return rows.map(toTemplate);
 }
