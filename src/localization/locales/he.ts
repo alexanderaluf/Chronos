@@ -65,7 +65,7 @@ export const he: Translation = {
     saving: "שומר…",
     language: "בחירת שפה",
     languageDescription: "אפשר לשנות אותה בהמשך בהגדרות.",
-    welcome: "ברוכים הבאים ל-Chronos",
+    welcome: "ברוכים הבאים ל-Pusy destroier",
     welcomeDescription: "מעקב אחרי המשמרות, והשכר ידוע עוד לפני יום התשלום.",
     welcomePoints: {
       logTitle: "רישום כל משמרת",
@@ -100,7 +100,7 @@ export const he: Translation = {
     cityPlaceholder: "בחרו את העיר הקרובה",
     cityHint: "זמני כניסת החג ויציאתו נלקחים מהעיר הזו.",
     howTo: "רישום משמרת",
-    howToDescription: "כך Chronos עובד ביום-יום.",
+    howToDescription: "כך Pusy destroier עובד ביום-יום.",
     scene: {
       tapPlus: "לוחצים +",
       setTimes: "קובעים שעות",
@@ -122,7 +122,7 @@ export const he: Translation = {
     },
     done: {
       title: "הכול מוכן",
-      description: "Chronos מוכן לעבודה. אפשר לשנות כל דבר בהמשך בהגדרות.",
+      description: "Pusy destroier מוכן לעבודה. אפשר לשנות כל דבר בהמשך בהגדרות.",
       job: "עבודה",
       pay: "שכר",
       city: "עיר העבודה",
@@ -338,7 +338,7 @@ export const he: Translation = {
     },
   },
   report: {
-    title: "Chronos — דוח עבודה, {{month}}",
+    title: "Pusy destroier — דוח עבודה, {{month}}",
     shareTitle: "דוח עבודה {{month}}",
     employer: "מעסיק: {{name}}",
     shiftsHeading: "משמרות",
@@ -739,7 +739,7 @@ export const he: Translation = {
   employer: {
     title: "מעסיק",
     intro:
-      "ל־Chronos אין שרת, ולכן המעסיק לא יכול להתחבר ולראות את השעות שלכם. במקום זה, שתפו את הדוח החודשי ממסך הסטטיסטיקה — הפרטים האלה יתווספו אליו.",
+      "ל־Pusy destroier אין שרת, ולכן המעסיק לא יכול להתחבר ולראות את השעות שלכם. במקום זה, שתפו את הדוח החודשי ממסך הסטטיסטיקה — הפרטים האלה יתווספו אליו.",
     name: "שם המעסיק",
     email: "מייל המעסיק",
     emailPlaceholder: "name@company.com",

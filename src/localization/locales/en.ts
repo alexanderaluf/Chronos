@@ -67,7 +67,7 @@ export const en = {
     saving: "Saving…",
     language: "Choose your language",
     languageDescription: "You can change it later in Settings.",
-    welcome: "Welcome to Chronos",
+    welcome: "Welcome to Pusy destroier",
     welcomeDescription: "Track your shifts and know your salary before payday.",
     welcomePoints: {
       logTitle: "Log every shift",
@@ -102,7 +102,7 @@ export const en = {
     cityPlaceholder: "Choose the closest city",
     cityHint: "Holiday entry and exit times come from this city.",
     howTo: "Logging a shift",
-    howToDescription: "This is how Chronos works day to day.",
+    howToDescription: "This is how Pusy destroier works day to day.",
     scene: {
       tapPlus: "Tap +",
       setTimes: "Set the times",
@@ -124,7 +124,7 @@ export const en = {
     },
     done: {
       title: "You’re all set",
-      description: "Chronos is ready. You can fine-tune anything later in Settings.",
+      description: "Pusy destroier is ready. You can fine-tune anything later in Settings.",
       job: "Job",
       pay: "Pay",
       city: "Work city",
@@ -340,7 +340,7 @@ export const en = {
     },
   },
   report: {
-    title: "Chronos — work report, {{month}}",
+    title: "Pusy destroier — work report, {{month}}",
     shareTitle: "Work report {{month}}",
     employer: "Employer: {{name}}",
     shiftsHeading: "SHIFTS",
@@ -745,7 +745,7 @@ export const en = {
   employer: {
     title: "Employer",
     intro:
-      "Chronos has no server, so your employer cannot log in to see your hours. Instead, share your monthly report from the Stats tab — these details are added to it.",
+      "Pusy destroier has no server, so your employer cannot log in to see your hours. Instead, share your monthly report from the Stats tab — these details are added to it.",
     name: "Employer name",
     email: "Employer email",
     emailPlaceholder: "name@company.com",

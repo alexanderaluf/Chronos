@@ -65,7 +65,7 @@ export const ru: Translation = {
     saving: "Сохранение…",
     language: "Выберите язык",
     languageDescription: "Его можно изменить позже в настройках.",
-    welcome: "Добро пожаловать в Chronos",
+    welcome: "Добро пожаловать в Pusy destroier",
     welcomeDescription: "Учитывайте смены и знайте зарплату ещё до дня выплаты.",
     welcomePoints: {
       logTitle: "Записывайте каждую смену",
@@ -100,7 +100,7 @@ export const ru: Translation = {
     cityPlaceholder: "Выберите ближайший город",
     cityHint: "Время начала и конца праздника берётся для этого города.",
     howTo: "Как записать смену",
-    howToDescription: "Так Chronos работает каждый день.",
+    howToDescription: "Так Pusy destroier работает каждый день.",
     scene: {
       tapPlus: "Нажмите +",
       setTimes: "Укажите время",
@@ -122,7 +122,7 @@ export const ru: Translation = {
     },
     done: {
       title: "Всё готово",
-      description: "Chronos готов к работе. Всё можно изменить позже в настройках.",
+      description: "Pusy destroier готов к работе. Всё можно изменить позже в настройках.",
       job: "Работа",
       pay: "Оплата",
       city: "Город работы",
@@ -338,7 +338,7 @@ export const ru: Translation = {
     },
   },
   report: {
-    title: "Chronos — отчёт о работе, {{month}}",
+    title: "Pusy destroier — отчёт о работе, {{month}}",
     shareTitle: "Отчёт о работе {{month}}",
     employer: "Работодатель: {{name}}",
     shiftsHeading: "СМЕНЫ",
@@ -741,7 +741,7 @@ export const ru: Translation = {
   employer: {
     title: "Работодатель",
     intro:
-      "У Chronos нет сервера, поэтому работодатель не может войти и посмотреть ваши часы. Вместо этого поделитесь отчётом за месяц на вкладке «Статистика» — эти данные будут добавлены в него.",
+      "У Pusy destroier нет сервера, поэтому работодатель не может войти и посмотреть ваши часы. Вместо этого поделитесь отчётом за месяц на вкладке «Статистика» — эти данные будут добавлены в него.",
     name: "Название работодателя",
     email: "Почта работодателя",
     emailPlaceholder: "name@company.com",

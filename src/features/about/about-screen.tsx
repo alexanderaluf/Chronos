@@ -15,7 +15,7 @@ export function AboutScreen() {
 
   return (
     <FormScreen title={t("about.title")}>
-      <FormSection title="Chronos">
+      <FormSection title="Pusy destroier">
         <FieldRow label={t("about.version")}>
           <Text className="text-muted">{Constants.expoConfig?.version ?? "1.0.0"}</Text>
         </FieldRow>
